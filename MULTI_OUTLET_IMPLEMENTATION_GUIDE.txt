@@ -1,0 +1,210 @@
+================================================================================
+MULTI-OUTLET ARCHITECTURE & STEP-BY-STEP IMPLEMENTATION GUIDE
+================================================================================
+Project: Confidence POS & ERP
+Application Model: Centralized Inventory & Accounting with Distributed Outlets
+Status: Fresh Deployment (Clean Setup - No Legacy Data Backfill Required)
+================================================================================
+
+1. EXECUTIVE SUMMARY & ARCHITECTURAL FOUNDATION
+--------------------------------------------------------------------------------
+This implementation transforms the application into a scalable multi-outlet system 
+built on a single unified database. 
+
+A. CENTRAL HQ / CENTRAL WAREHOUSE (The Core Brain):
+   - Master Product Catalog: Products, categories, units, barcodes, and pricing.
+   - Procurement: All supplier purchases (AP) are received into Central Warehouse.
+   - Stock Distribution: Central dispatches inventory to outlets via Stock Transfers.
+   - Accounting & Banking: Full Chart of Accounts, General Ledger, Journals, Bank Accounts,
+     and Capital/Loans remain 100% centralized.
+   - Reporting: Consolidated financial statements (P&L, Balance Sheet, Trial Balance)
+     plus per-outlet drill-downs (Sales by Outlet, Stock Valuation by Outlet).
+
+B. RETAIL OUTLETS (Lean Operational Front-Ends):
+   - Point of Sale (POS): Sells only from the outlet's locally allocated stock.
+   - Stock Receiving: Accepts incoming stock transfer shipments from Central.
+   - Daily Cash Close: Reconciles drawer cash at end-of-day for remittance to Central.
+   - Access Restrictions: Outlets have ZERO access to Chart of Accounts, General
+     Ledger, Banking, Supplier Purchases, or Company Financial Reports.
+
+C. NO LEGACY DATA BACKFILL:
+   - Because this is a fresh setup, migrations will be created cleanly.
+   - The initial seeders will create the "Central Warehouse / HQ" and assign default 
+     administrative users and initial stock directly.
+
+
+2. DATABASE SCHEMA DESIGN (CLEAN FRESH SETUP)
+--------------------------------------------------------------------------------
+
+A. TABLE: `outlets`
+   - id                     : bigint, PK
+   - name                   : string(100) (e.g., "Central Warehouse", "Airport Branch")
+   - code                   : string(20), unique (e.g., "HQ-CENTRAL", "OUT-001")
+   - type                   : enum('central_warehouse', 'retail_outlet')
+   - is_central             : boolean, default(false)
+   - phone                  : string(30), nullable
+   - email                  : string(100), nullable
+   - address                : text, nullable
+   - is_active              : boolean, default(true)
+   - created_by, updated_by, deleted_by : foreign keys to users (nullable)
+   - timestamps, softDeletes
+
+B. TABLE: `outlet_stocks`
+   (Decouples inventory quantity from the catalog `products` table)
+   - id                     : bigint, PK
+   - outlet_id              : bigint, FK -> outlets.id (onDelete cascade)
+   - product_id             : bigint, FK -> products.id (onDelete cascade)
+   - quantity               : decimal(15,2), default(0.00)
+   - stock_level            : decimal(15,2), default(0.00) (minimum alert threshold)
+   - timestamps
+   - UNIQUE KEY (`outlet_id`, `product_id`)
+   - INDEX (`outlet_id`, `quantity`)
+
+C. TABLE: `stock_transfers`
+   - id                     : bigint, PK
+   - transfer_no            : string(50), unique (e.g., "TRF-20261027-0001")
+   - from_outlet_id         : bigint, FK -> outlets.id (usually Central)
+   - to_outlet_id           : bigint, FK -> outlets.id (destination branch)
+   - status                 : enum('draft', 'dispatched', 'received', 'cancelled')
+   - transfer_date          : date
+   - dispatched_at          : dateTime, nullable
+   - received_at            : dateTime, nullable
+   - dispatched_by          : bigint, FK -> users.id (nullable)
+   - received_by            : bigint, FK -> users.id (nullable)
+   - notes                  : text, nullable
+   - created_by, updated_by : bigint, FK -> users.id (nullable)
+   - timestamps
+
+D. TABLE: `stock_transfer_items`
+   - id                     : bigint, PK
+   - stock_transfer_id      : bigint, FK -> stock_transfers.id (onDelete cascade)
+   - product_id             : bigint, FK -> products.id (onDelete restrict)
+   - qty_dispatched         : decimal(15,2)
+   - qty_received           : decimal(15,2), default(0.00)
+   - unit_cost              : decimal(15,2), nullable (valuation at transfer time)
+   - timestamps
+
+E. TABLE MODIFICATIONS (ADDING `outlet_id`):
+   - `users`: add `outlet_id` (nullable, FK -> outlets.id). Null = Central / All Outlets.
+   - `sales`: add `outlet_id` (not null, FK -> outlets.id).
+   - `stock_ledgers`: add `outlet_id` (not null, FK -> outlets.id).
+   - `cash_reconciliations`: add `outlet_id` (not null, FK -> outlets.id).
+   - `stock_adjustments`: add `outlet_id` (not null, FK -> outlets.id).
+
+
+3. CENTRALIZED ACCOUNTING & FINANCIAL FLOW
+--------------------------------------------------------------------------------
+1. Centralized Single Ledger:
+   All financial events post into the single, central Chart of Accounts.
+   - When an outlet makes a sale:
+     * Dr. Cash on Hand (or Accounts Receivable)
+     * Cr. Sales Revenue
+     * Dr. Cost of Goods Sold (COGS)
+     * Cr. Inventory Asset
+   - The Journal Entry record is stamped with `outlet_id` so Central can filter
+     revenue and profitability by branch while maintaining a single Balance Sheet.
+
+2. Stock Distribution (No Financial Journal Needed):
+   - Transferring stock between Central and an outlet is an internal movement.
+   - It updates `outlet_stocks` and logs `transfer_out` and `transfer_in` in 
+     `stock_ledgers`. 
+   - No complex inter-company financial journals are required.
+
+3. Cash Drawer Remittance:
+   - At day's end, the outlet closes their drawer via Cash Reconciliation.
+   - When cash is remitted/banked into Central's account, Central records a 
+     Bank Transaction / Transfer moving funds into the Central Bank Account.
+
+
+4. STEP-BY-STEP IMPLEMENTATION ROADMAP
+--------------------------------------------------------------------------------
+
+STEP 1: DATABASE MIGRATIONS (CLEAN FRESH SCHEMA)
+- Create migration: `create_outlets_table`
+- Create migration: `create_outlet_stocks_table`
+- Create migration: `create_stock_transfers_and_items_tables`
+- Create migration: `add_outlet_id_to_core_tables` (users, sales, stock_ledgers, 
+  cash_reconciliations, stock_adjustments)
+- Run migrations: `php artisan migrate`
+
+STEP 2: DATABASE SEEDER SETUP
+- Update `database/seeders/DatabaseSeeder.php` to:
+  * Seed default Central Outlet (e.g. "Central Warehouse / HQ", code: "HQ-01", is_central: 1)
+  * Seed initial retail outlet (e.g. "Main Retail Branch", code: "BR-01")
+  * Seed default Spatie Roles & Permissions (Central Admin, Outlet Manager, Cashier)
+  * Seed default Chart of Accounts and Account Mappings
+
+STEP 3: ELOQUENT MODELS & DOMAIN LOGIC
+- Create `App\Models\Outlet`:
+  * Relationships: `users()`, `stocks()`, `sales()`, `transfersOut()`, `transfersIn()`
+- Create `App\Models\OutletStock`:
+  * Relationships: `outlet()`, `product()`
+- Create `App\Models\StockTransfer` and `App\Models\StockTransferItem`
+- Update `App\Models\Product`:
+  * Add `outletStocks()` relationship
+  * Add `total_quantity` accessor for consolidated company stock
+- Update `App\Models\User`:
+  * Add `outlet()` relationship and helper methods (`isCentralAdmin()`, `assignedOutlet()`)
+- Refactor `App\Services\StockLedgerService`:
+  * Require `outlet_id` in `record()` method
+  * Add support for movement types: `transfer_out` and `transfer_in`
+
+STEP 4: CENTRAL OUTLET MANAGEMENT (CRUD)
+- Create `App\Http\Controllers\Backend\OutletController`:
+  * Routes: `admin/outlets` (index, create, store, edit, update, destroy/toggle)
+  * Views: List outlets, create new branch, edit branch details
+- Update User Management (`UserController`):
+  * Add Outlet selection dropdown to User Create / Edit forms
+  * Assign Cashiers/Managers to their specific outlet
+
+STEP 5: STOCK DISTRIBUTION MODULE (CENTRAL TO OUTLETS)
+- Create `App\Services\StockTransferService`:
+  * `createAndDispatchTransfer()`: Deducts stock from Central `outlet_stocks`, 
+    logs `transfer_out` in `stock_ledgers`, sets status to `dispatched`.
+  * `receiveTransfer()`: Increments stock at destination `outlet_stocks`, 
+    logs `transfer_in` in `stock_ledgers`, sets status to `received`.
+- Create `App\Http\Controllers\Backend\StockTransferController`:
+  * Central views: Create transfer, dispatch goods, track in-transit transfers.
+  * Outlet views: View incoming shipments, one-click "Accept / Receive Delivery".
+
+STEP 6: POINT OF SALE (POS) & SALES SCOPING
+- Refactor `App\Http\Controllers\Backend\SaleController@store`:
+  * Auto-assign `outlet_id = auth()->user()->outlet_id`
+  * Check and deduct inventory from `outlet_stocks` for the user's outlet
+  * Record `outlet_id` in `StockLedgerService`
+  * Continue automatic background posting via `AccountingIntegrationService`
+- Update POS Frontend & Barcode Search:
+  * Restrict product inventory lookup to the cashier's active outlet
+- Customize Thermal Receipt:
+  * Dynamically print the branch's name, phone, and address on sales receipts
+
+STEP 7: CASH RECONCILIATION & STOCK ADJUSTMENTS BY OUTLET
+- Refactor `CashReconciliationController`:
+  * Bind daily drawer close to the user's `outlet_id`
+  * Central view allows auditing drawer reconciliations filtered by outlet
+- Refactor `StockAdjustmentController`:
+  * Require selecting which outlet the adjustment/damage occurred at
+  * Adjust `outlet_stocks` for that specific location
+
+STEP 8: CENTRALIZED REPORTING & NAVIGATION SCOPING
+- Update Report Controllers (`ReportController`, `StockController`, etc.):
+  * Add an `[All Outlets | Outlet A | Outlet B]` filter dropdown to:
+    - Sales Reports (All Sales, Cash Sales, Credit Sales, Lines Report)
+    - Stock Reports (Stock Balance, Stock Valuation, Stock Ledger)
+    - Profit & Loss Report
+- Configure Navigation & Spatie Permissions:
+  * Cashiers/Outlet staff see only: POS, My Sales, Receive Stock, Daily Drawer Close
+  * Central Admins/Accountants see full menu: Accounting, Banking, Purchasing, 
+    All Outlets, Distribution, Reports, and System Settings
+
+STEP 9: FRESH TESTING & VALIDATION
+- Run `php artisan migrate:fresh --seed`
+- Test multi-outlet lifecycle:
+  1. Add 2 test outlets (e.g. "Outlet Alpha", "Outlet Beta")
+  2. Receive supplier purchase at Central Warehouse
+  3. Dispatch 20 units to Outlet Alpha
+  4. Accept delivery at Outlet Alpha
+  5. Complete sale at Outlet Alpha (verify Alpha stock decreases, Beta remains 0, Central untouched)
+  6. Verify Central General Ledger and Profit Report show the transaction with outlet attribution
+================================================================================
+

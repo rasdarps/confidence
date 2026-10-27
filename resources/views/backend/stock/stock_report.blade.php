@@ -27,7 +27,7 @@
                         <h4 class="card-title">Stock Report </h4>
 
                         <div class="row mb-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label>Category</label>
                                 <select id="filter_category" class="form-control select2">
                                     <option value="">All Categories</option>
@@ -36,7 +36,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label>Unit</label>
                                 <select id="filter_unit" class="form-control select2">
                                     <option value="">All Units</option>
@@ -45,7 +45,16 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-4 d-flex align-items-end">
+                            <div class="col-md-3">
+                                <label>Outlet / Warehouse</label>
+                                <select id="filter_outlet" class="form-control select2">
+                                    <option value="">All Warehouses & Outlets</option>
+                                    @foreach($outlets as $outlet)
+                                        <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
                                 <button id="reset_filters" class="btn btn-dark w-100">Reset Filters</button>
                             </div>
                         </div>

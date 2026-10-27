@@ -235,6 +235,22 @@
                                             </ul>
                                         </li>
                                     @endcanany
+                                    @canany(['stock-transfer-list', 'stock-transfer-create', 'stock-transfer-receive'])
+                                        <li>
+                                            <a href="javascript: void(0);" class="has-arrow waves-effect">
+                                                <i class="fa fa-truck"></i>
+                                                <span>Stock Transfers</span>
+                                            </a>
+                                            <ul class="sub-menu" aria-expanded="false">
+                                                @can('stock-transfer-create')
+                                                    <li><a href="{{ route('stock-transfers.create') }}"><i class="fa fa-plus-circle me-1"></i>New Transfer</a></li>
+                                                @endcan
+                                                @can('stock-transfer-list')
+                                                    <li><a href="{{ route('stock-transfers.index') }}"><i class="fa fa-truck me-1"></i>All Transfers</a></li>
+                                                @endcan
+                                            </ul>
+                                        </li>
+                                    @endcanany
 
                                     @canany(['cash-reconciliation-list', 'cash-reconciliation-create', 'cash-reconciliation-show'])
                                         <li>
@@ -431,7 +447,7 @@
                         @endcanany
 
                         {{-- setup menu starts --}}
-                         @canany(['company-list', 'company-create', 'supplier-list', 'supplier-create', 'customer-list', 'customer-create', 'category-list', 'category-create', 'unit-list', 'unit-create', 'expense-category-list', 'expense-category-create', 'product-list', 'product-create', 'product-price-list', 'settings-manage'])
+                         @canany(['outlet-list', 'outlet-create', 'company-list', 'company-create', 'supplier-list', 'supplier-create', 'customer-list', 'customer-create', 'category-list', 'category-create', 'unit-list', 'unit-create', 'expense-category-list', 'expense-category-create', 'product-list', 'product-create', 'product-price-list', 'settings-manage'])
                          <li class="menu-title">Setups</li>
                           <li><!--Main drop-->
                             <a href="javascript: void(0);" class="has-arrow waves-effect">
@@ -456,6 +472,23 @@
                                     </ul>
                                 </li>
                                 @endcanany
+                                @canany(['outlet-list', 'outlet-create'])
+                                 <li>
+                                    <a href="javascript: void(0);" class="has-arrow waves-effect">
+                                        <i class="fa fa-store"></i>
+                                        <span>Outlets / Branches</span>
+                                    </a>
+                                    <ul class="sub-menu" aria-expanded="false">
+                                        @can('outlet-create')
+                                            <li><a href="{{ route('outlets.create') }}"><i class="fa fa-plus-circle me-1"></i>Create Outlet</a></li>
+                                        @endcan
+                                        @can('outlet-list')
+                                            <li><a href="{{ route('outlets.index') }}"><i class="fa fa-store me-1"></i>All Outlets</a></li>
+                                        @endcan
+                                    </ul>
+                                </li>
+                                @endcanany
+
 
                                 @canany(['supplier-list', 'supplier-create'])
                                 <li>

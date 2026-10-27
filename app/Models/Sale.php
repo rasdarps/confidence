@@ -15,21 +15,34 @@ class Sale extends Model
     use Auditable;
     
     protected $fillable = [
+        'outlet_id',
         'sale_no',
         'date', 
         'description',
+        'accounting_status',
+        'accounting_journal_id',
+        'accounting_posted_at',
+        'printed_at',
+        'printed_by',
+        'delivery_code',
+        'delivered_at',
+        'delivered_by',
         'cancelled_at',
         'cancelled_by',
         'cancellation_reason',
         'created_by',
         'updated_by',
+        'deleted_by',
     ];
 
     protected $casts = [
+        'outlet_id' => 'integer',
         'date' => 'date',
         'cancelled_at' => 'datetime',
         'printed_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'accounting_posted_at' => 'datetime',
+        'accounting_journal_id' => 'integer',
         'cancelled_by' => 'integer',
         'printed_by' => 'integer',
         'delivered_by' => 'integer',
@@ -49,6 +62,11 @@ class Sale extends Model
                 $sale->delivery_code = $deliveryCode;
             }
         });
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
     }
 
     // User relationships
@@ -87,7 +105,6 @@ class Sale extends Model
         return $this->hasMany(SaleReceiptEvent::class);
     }
 
-    // Existing relationships
     public function payment()
     {
         return $this->hasOne(Payment::class, 'sale_id', 'id');
@@ -98,8 +115,13 @@ class Sale extends Model
         return $this->belongsTo(Customer::class, 'customer_id', 'id');
     }
 
-     public function sale_details(){
-        return $this->hasMany(SaleDetail::class,'sale_id','id');
+    public function sale_details()
+    {
+        return $this->hasMany(SaleDetail::class, 'sale_id', 'id');
+    }
+
+    public function accountingJournal()
+    {
+        return $this->belongsTo(AccountingJournal::class, 'accounting_journal_id');
     }
 }
-

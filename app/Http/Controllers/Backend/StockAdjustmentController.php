@@ -78,7 +78,9 @@ class StockAdjustmentController extends Controller
                 $totalQty = collect($validatedData['qty'])->map(fn ($v) => (float) $v)->sum();
                 $totalValue = collect($validatedData['amount'])->map(fn ($v) => (float) $v)->sum();
 
+                $outletId = $validatedData['outlet_id'] ?? Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
                 $adjustment = StockAdjustment::create([
+                    'outlet_id' => $outletId,
                     'adjustment_date' => $validatedData['adjustment_date'],
                     'reference_no' => $validatedData['reference_no'] ?? null,
                     'adjustment_type' => $validatedData['adjustment_type'],
@@ -235,6 +237,7 @@ class StockAdjustmentController extends Controller
     private function validateRequest(Request $request, ?int $adjustmentId): array
     {
         $validated = $request->validate([
+            'outlet_id' => 'nullable|exists:outlets,id',
             'adjustment_date' => 'required|date',
             'reference_no' => [
                 'nullable',
@@ -321,8 +324,15 @@ class StockAdjustmentController extends Controller
     {
         foreach ($validatedData['product_id'] as $index => $productId) {
             $product = Product::where('id', $productId)->lockForUpdate()->firstOrFail();
-
-            $beforeQty = (float) $product->quantity;
+            $outletStock = \App\Models\OutletStock::firstOrCreate([
+                'outlet_id' => $adjustment->outlet_id,
+                'product_id' => $product->id,
+            ], [
+                'quantity' => 0,
+                'stock_level' => 0,
+            ]);
+            $outletStock = \App\Models\OutletStock::where('id', $outletStock->id)->lockForUpdate()->first();
+            $beforeQty = (float) $outletStock->quantity;
 
             $qty = (float) ($validatedData['qty'][$index] ?? 0);
             $unitCost = (float) $validatedData['unit_cost'][$index];
@@ -354,9 +364,8 @@ class StockAdjustmentController extends Controller
                 $afterQty = $beforeQty - $qty;
             }
 
-            $product->update([
+            $outletStock->update([
                 'quantity' => $afterQty,
-                'updated_by' => Auth::id(),
             ]);
 
             $item = StockAdjustmentItem::create([
@@ -373,6 +382,7 @@ class StockAdjustmentController extends Controller
 
             //StockLedgerService record to log stock movement
             app(StockLedgerService::class)->record([
+                'outlet_id' => $adjustment->outlet_id,
                 'product_id' => $product->id,
                 'movement_type' => $lineDirection === 'increase' ? 'adjustment_increase' : 'adjustment_decrease',
                 'reference_type' => 'stock_adjustment',
@@ -400,7 +410,8 @@ class StockAdjustmentController extends Controller
                 continue;
             }
 
-            $currentQty = (float) $product->quantity;
+            $outletStock = \App\Models\OutletStock::where('outlet_id', $adjustment->outlet_id)->where('product_id', $item->product_id)->lockForUpdate()->first();
+            $currentQty = $outletStock ? (float) $outletStock->quantity : 0;
             $lineQty = (float) $item->qty;
             $lineWasIncrease = (float) $item->after_qty > (float) $item->before_qty;
 
@@ -415,13 +426,11 @@ class StockAdjustmentController extends Controller
                 $movementType = 'adjustment_increase';
             }
 
-            $product->update([
-                'quantity' => $newQty,
-                'updated_by' => Auth::id(),
-            ]);
+            if ($outletStock) { $outletStock->update(['quantity' => $newQty]); }
 
             //StockLedgerService record to log stock movement
             app(StockLedgerService::class)->record([
+                'outlet_id' => $adjustment->outlet_id,
                 'product_id' => $product->id,
                 'movement_type' => $movementType,
                 'reference_type' => 'stock_adjustment',

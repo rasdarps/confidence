@@ -81,7 +81,7 @@
                                                                 data-unit-id="{{ $product->unit_id }}"
                                                                 data-unit-name="{{ $product->unit->name ?? '' }}"
                                                                 data-price="{{ (float) ($product->selling_price ?? 0) }}"
-                                                                data-qty="{{ (float) ($product->quantity ?? 0) }}"
+                                                                data-qty="{{ (float) (isset($currentOutletId) && $currentOutletId ? $product->quantityForOutlet($currentOutletId) : ($product->quantity ?? 0)) }}"
                                                                 data-barcode="{{ $product->barcode ?? '' }}">
                                                                 {{ $product->name }}
                                                             </option>

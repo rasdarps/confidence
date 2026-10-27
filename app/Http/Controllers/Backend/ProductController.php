@@ -47,7 +47,15 @@ class ProductController extends Controller
             ]);
         }
 
-        return response()->json($product);
+        $outletId = auth()->check() ? auth()->user()->assignedOutletId() : null;
+        if (!$outletId) {
+            $outletId = \App\Models\Outlet::where('is_central', true)->value('id');
+        }
+
+        $productData = $product->toArray();
+        $productData['quantity'] = $outletId ? (float) $product->quantityForOutlet($outletId) : (float) $product->quantity;
+
+        return response()->json($productData);
     }
 
     public function create(){
@@ -108,6 +116,18 @@ class ProductController extends Controller
                     $barcode = Product::generateBarcode($product->name, $product->id, $product->created_at);
                     $product->barcode = $barcode;
                     $product->saveQuietly();
+                }
+
+                $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id')
+                    ?? \App\Models\Outlet::orderBy('id')->value('id');
+                if ($centralOutletId) {
+                    \App\Models\OutletStock::firstOrCreate([
+                        'outlet_id' => $centralOutletId,
+                        'product_id' => $product->id,
+                    ], [
+                        'quantity' => 0,
+                        'stock_level' => 0,
+                    ]);
                 }
             });
             return response()->json([

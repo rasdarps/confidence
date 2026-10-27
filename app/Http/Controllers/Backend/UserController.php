@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Backend;
     
 use App\DataTables\Admin\Settings\UserDataTable;
 use App\Http\Controllers\Controller;
+use App\Models\Outlet;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -44,7 +45,8 @@ class UserController extends Controller
     {
         // ensures super admin role is not assigned to anyone during user creation
         $roles = Role::where('name', '!=', 'Super Admin')->pluck('name','name')->all();
-        return view('users.create',compact('roles'));
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+        return view('users.create', compact('roles', 'outlets'));
     }
     
     /**
@@ -62,7 +64,8 @@ class UserController extends Controller
             'phone' => 'required|digits:10|numeric|unique:users,phone',
             'password' => 'required|same:confirm_password',
             'roles' => 'required',
-            'user_type' => 'required|in:Admin,User'
+            'user_type' => 'required|in:Admin,User',
+            'outlet_id' => 'nullable|exists:outlets,id'
         ], [
             'name.required' => 'Full Name is required',
             'username.required' => 'Username is required',
@@ -81,6 +84,7 @@ class UserController extends Controller
             $data = $validatedData;
             $data['password'] = Hash::make($data['password']);
             $data['created_by'] = Auth::id();
+            $data['outlet_id'] = $request->filled('outlet_id') ? (int) $request->input('outlet_id') : null;
             
             // Use transaction for data integrity
             DB::transaction(function () use ($data, $request) {
@@ -153,7 +157,8 @@ class UserController extends Controller
             $roles = Role::where('name', '!=', 'Super Admin')->pluck('name','name')->all();
             $userRole = $user->roles->pluck('name','name')->all();
 
-            return view('users.edit', compact('user', 'roles', 'userRole'));
+            $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+            return view('users.edit', compact('user', 'roles', 'userRole', 'outlets'));
         } catch (\Exception $e) {
             return redirect()->route('users.index')->with('error', 'Invalid user ID.');
         }
@@ -194,7 +199,8 @@ class UserController extends Controller
             'phone' => 'required|digits:10|numeric|unique:users,phone,' . $id,
             'password' => 'nullable|same:confirm_password',
             'roles' => 'required',
-            'user_type' => 'required|in:Admin,User'
+            'user_type' => 'required|in:Admin,User',
+            'outlet_id' => 'nullable|exists:outlets,id'
         ], [
             'name.required' => 'Full Name is required',
             'username.required' => 'Username is required',
@@ -227,6 +233,7 @@ class UserController extends Controller
             }
             
             $data['updated_by'] = Auth::id();
+            $data['outlet_id'] = $request->filled('outlet_id') ? (int) $request->input('outlet_id') : null;
             
             // Use transaction for data integrity
             DB::transaction(function () use ($data, $request, $user, $id) {

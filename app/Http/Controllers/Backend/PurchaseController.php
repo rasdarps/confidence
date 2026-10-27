@@ -253,11 +253,20 @@ class PurchaseController extends Controller
                         $purchase_details->unit_id = $unitId;
                         $purchase_details->save();
 
-                        // Product row already locked at loop start.
-                        $beforeQty = (float) $product->quantity;
+                        $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
+                        $outletStock = \App\Models\OutletStock::firstOrCreate([
+                            'outlet_id' => $centralOutletId,
+                            'product_id' => $product->id,
+                        ], [
+                            'quantity' => 0,
+                            'stock_level' => 0,
+                        ]);
+                        $outletStock = \App\Models\OutletStock::where('id', $outletStock->id)->lockForUpdate()->first();
+                        $beforeQty = (float) $outletStock->quantity;
                         $lineQty = (float) $purchase_details->buying_qty;
                         $afterQty = $beforeQty + $lineQty;
-                        $product->quantity = $afterQty;
+                        $outletStock->quantity = $afterQty;
+                        $outletStock->save();
 
                         $priceChanged = false;
 
@@ -285,6 +294,7 @@ class PurchaseController extends Controller
                         }
 
                         app(StockLedgerService::class)->record([
+                            'outlet_id' => $centralOutletId,
                             'product_id' => $product->id,
                             'movement_type' => 'purchase',
                             'reference_type' => 'purchase',
@@ -580,6 +590,7 @@ class PurchaseController extends Controller
 
                     if ($deltaQty > 0) {
                         app(StockLedgerService::class)->record([
+                            'outlet_id' => $centralOutletId,
                             'product_id' => $product->id,
                             'movement_type' => 'purchase',
                             'reference_type' => 'purchase',
@@ -760,10 +771,11 @@ class PurchaseController extends Controller
                 }
 
                 // Reverse stock-in for every line item. If stock has been consumed, block cancellation.
+                $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
                 foreach ($purchase->purchase_details as $detail) {
-                    $product = Product::whereKey($detail->product_id)->lockForUpdate()->first();
-                    if ($product) {
-                        $beforeQty = (float) $product->quantity;
+                    $outletStock = \App\Models\OutletStock::where('outlet_id', $centralOutletId)->where('product_id', $detail->product_id)->lockForUpdate()->first();
+                    if ($outletStock) {
+                        $beforeQty = (float) $outletStock->quantity;
                         $lineQty = (float) $detail->buying_qty;
                         $newQty = $beforeQty - $lineQty;
                         if ($newQty < 0) {
@@ -771,11 +783,12 @@ class PurchaseController extends Controller
                                 'reason' => ['Cannot cancel this purchase because some purchased stock has already been used/sold.'],
                             ]);
                         }
-                        $product->quantity = $newQty;
-                        $product->save();
+                        $outletStock->quantity = $newQty;
+                        $outletStock->save();
 
                         app(StockLedgerService::class)->record([
-                            'product_id' => $product->id,
+                            'outlet_id' => $centralOutletId,
+                            'product_id' => $detail->product_id,
                             'movement_type' => 'purchase_cancel',
                             'reference_type' => 'purchase',
                             'reference_id' => $purchase->id,

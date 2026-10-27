@@ -2,10 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
+use App\Models\Outlet;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
+use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class CreateAdminUserSeeder extends Seeder
 {
@@ -16,7 +17,6 @@ class CreateAdminUserSeeder extends Seeder
      */
     public function run()
     {
-        //
         $guardName = config('permission.defaults.guard_name', config('auth.defaults.guard', 'web'));
         $adminEmail = 'rasdarps@gmail.com';
         $adminUsername = 'rasdarps';
@@ -40,6 +40,7 @@ class CreateAdminUserSeeder extends Seeder
                 'phone' => $adminPhone,
                 'password' => bcrypt('Juliana@1985'),
                 'user_type' => 'Super Admin',
+                'outlet_id' => null, // Super Admin has global multi-outlet access
                 'created_by' => null,
             ]);
         } else {
@@ -47,6 +48,7 @@ class CreateAdminUserSeeder extends Seeder
                 'name' => 'Kwaku Darpah',
                 'phone' => $adminPhone,
                 'user_type' => 'Super Admin',
+                'outlet_id' => null,
                 'created_by' => 1,
             ];
 
@@ -69,6 +71,26 @@ class CreateAdminUserSeeder extends Seeder
         if (!$user->hasRole($role->name)) {
             $user->assignRole($role->name);
         }
-        
+
+        // Create sample branch cashier user
+        $branchOutlet = Outlet::where('code', 'OUT-001')->first();
+        if ($branchOutlet) {
+            $cashier = User::firstOrCreate(
+                ['email' => 'cashier@confidence.com'],
+                [
+                    'name' => 'Branch Cashier',
+                    'username' => 'cashier',
+                    'phone' => '0241111222',
+                    'password' => bcrypt('password123'),
+                    'user_type' => 'Cashier',
+                    'outlet_id' => $branchOutlet->id,
+                ]
+            );
+
+            $cashierRole = Role::findOrCreate('Cashier', $guardName);
+            if (!$cashier->hasRole($cashierRole->name)) {
+                $cashier->assignRole($cashierRole->name);
+            }
+        }
     }
 }

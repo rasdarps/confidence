@@ -13,6 +13,7 @@ class StockAdjustment extends Model
     use Auditable;
 
     protected $fillable = [
+        'outlet_id',
         'adjustment_date',
         'reference_no',
         'adjustment_type',
@@ -29,6 +30,7 @@ class StockAdjustment extends Model
     ];
 
     protected $casts = [
+        'outlet_id' => 'integer',
         'adjustment_date' => 'date',
         'total_qty' => 'decimal:2',
         'total_value' => 'decimal:2',
@@ -38,6 +40,11 @@ class StockAdjustment extends Model
         'updated_by' => 'integer',
         'deleted_by' => 'integer',
     ];
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
 
     public function items()
     {
@@ -57,5 +64,10 @@ class StockAdjustment extends Model
     public function deletedBy()
     {
         return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function accountingJournal()
+    {
+        return $this->belongsTo(AccountingJournal::class, 'accounting_journal_id');
     }
 }

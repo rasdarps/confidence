@@ -12,6 +12,7 @@ return new class extends Migration {
     {
         Schema::create('stock_ledgers', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('outlet_id');
             $table->unsignedBigInteger('product_id');
             $table->enum('movement_type', [
                 'purchase',
@@ -20,6 +21,8 @@ return new class extends Migration {
                 'adjustment_decrease',
                 'purchase_cancel',
                 'sale_cancel',
+                'transfer_out',
+                'transfer_in',
             ]);
             $table->string('reference_type', 60);
             $table->unsignedBigInteger('reference_id')->nullable();
@@ -40,9 +43,11 @@ return new class extends Migration {
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
 
+            $table->foreign('outlet_id')->references('id')->on('outlets')->restrictOnDelete();
             $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
 
+            $table->index(['outlet_id', 'product_id', 'movement_at']);
             $table->index(['product_id', 'movement_at', 'id']);
             $table->index(['movement_type', 'movement_at']);
             $table->index(['reference_type', 'reference_id']);

@@ -46,6 +46,8 @@ return new class extends Migration
 
             $table->double('selling_price');
             $table->timestamps();
+            $table->index(['sale_id', 'product_id']);
+            $table->index('product_id');
         });
     } 
 

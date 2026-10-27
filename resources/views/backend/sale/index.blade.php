@@ -91,6 +91,17 @@
                         </div>
 
                         <div class="row mb-3">
+                            @if(empty($isRestrictedToOwnSales))
+                                <div class="col-md-3">
+                                    <label>Branch / Outlet</label>
+                                    <select id="filter_outlet_id" class="form-control select2">
+                                        <option value="">All Outlets & Branches</option>
+                                        @foreach($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
                             <div class="col-md-3">
                                 <label>Payment Status</label>
                                 <select id="filter_payment_status" class="form-control">
@@ -241,7 +252,7 @@
             @endcan
 
             // Reload table when filters change
-            $('#filter_invoice_id, #filter_customer_id, #filter_from_date, #filter_to_date, #filter_payment_status, #filter_created_by').on('change', function() {
+            $('#filter_invoice_id, #filter_customer_id, #filter_from_date, #filter_to_date, #filter_payment_status, #filter_created_by, #filter_outlet_id').on('change', function() {
                 table.ajax.reload();
             });
 

@@ -15,14 +15,29 @@ return new class extends Migration
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('outlet_id');
             $table->string('sale_no')->unique();
             $table->date('date');
             $table->text('description')->nullable(); 
+
+            // Cancellation Tracking
             $table->timestamp('cancelled_at')->nullable();
             $table->unsignedBigInteger('cancelled_by')->nullable();
             $table->string('cancellation_reason', 500)->nullable();
+
+            // Accounting Integration
+            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted');
+            $table->unsignedBigInteger('accounting_journal_id')->nullable();
+            $table->timestamp('accounting_posted_at')->nullable();
+
+            // Receipt & Delivery Tracking
+            $table->timestamp('printed_at')->nullable();
+            $table->unsignedBigInteger('printed_by')->nullable();
+            $table->string('delivery_code', 33)->nullable()->unique();
+            $table->timestamp('delivered_at')->nullable();
+            $table->unsignedBigInteger('delivered_by')->nullable();
             
-            // Fixed: Proper foreign key relationships to users table
+            // Audit Fields
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->unsignedBigInteger('deleted_by')->nullable();
@@ -30,14 +45,23 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
 
-            // Add foreign key constraints for created_by and updated_by
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('deleted_by')->references('id')->on('users')->onDelete('set null');
+            // Foreign key constraints
+            $table->foreign('outlet_id')->references('id')->on('outlets')->restrictOnDelete();
+            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
+            $table->foreign('cancelled_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('printed_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('delivered_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('updated_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('deleted_by')->references('id')->on('users')->nullOnDelete();
             
-            // Add index for better performance on Sale searches
+            // Performance & Concurrency Indexes
+            $table->index('outlet_id');
             $table->index('sale_no');
             $table->index('date');
+            $table->index('accounting_status');
+            $table->index(['created_by', 'date']);
+            $table->index('created_by');
         });
     } 
 
@@ -51,4 +75,3 @@ return new class extends Migration
         Schema::dropIfExists('sales');
     }
 };
-

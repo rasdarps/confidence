@@ -132,68 +132,6 @@ return new class extends Migration
             $table->index(['transaction_date', 'type']);
             $table->index(['source_type', 'source_id']);
         });
-
-        Schema::table('sales', function (Blueprint $table) {
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('cancellation_reason');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index('accounting_status');
-        });
-
-        Schema::table('purchases', function (Blueprint $table) {
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('cancellation_reason');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index('accounting_status');
-        });
-
-        Schema::table('payments', function (Blueprint $table) {
-            $table->unsignedBigInteger('bank_account_id')->nullable()->after('customer_id');
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('change_due');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('bank_account_id')->references('id')->on('bank_accounts')->nullOnDelete();
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index(['paid_status', 'accounting_status']);
-        });
-
-        Schema::table('purchase_payments', function (Blueprint $table) {
-            $table->unsignedBigInteger('bank_account_id')->nullable()->after('supplier_id');
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('discount_amount');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('bank_account_id')->references('id')->on('bank_accounts')->nullOnDelete();
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index(['paid_status', 'accounting_status']);
-        });
-
-        Schema::table('payment_details', function (Blueprint $table) {
-            $table->unsignedBigInteger('bank_account_id')->nullable()->after('sale_id');
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('updated_by');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('bank_account_id')->references('id')->on('bank_accounts')->nullOnDelete();
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index(['date', 'accounting_status']);
-        });
-
-        Schema::table('purchase_payment_details', function (Blueprint $table) {
-            $table->unsignedBigInteger('bank_account_id')->nullable()->after('purchase_id');
-            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted')->after('updated_by');
-            $table->unsignedBigInteger('accounting_journal_id')->nullable()->after('accounting_status');
-            $table->timestamp('accounting_posted_at')->nullable()->after('accounting_journal_id');
-
-            $table->foreign('bank_account_id')->references('id')->on('bank_accounts')->nullOnDelete();
-            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
-            $table->index(['date', 'accounting_status']);
-        });
     }
 
     /**
@@ -201,46 +139,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('purchase_payment_details', function (Blueprint $table) {
-            $table->dropForeign(['bank_account_id']);
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['date', 'accounting_status']);
-            $table->dropColumn(['bank_account_id', 'accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
-        Schema::table('payment_details', function (Blueprint $table) {
-            $table->dropForeign(['bank_account_id']);
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['date', 'accounting_status']);
-            $table->dropColumn(['bank_account_id', 'accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
-        Schema::table('purchase_payments', function (Blueprint $table) {
-            $table->dropForeign(['bank_account_id']);
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['paid_status', 'accounting_status']);
-            $table->dropColumn(['bank_account_id', 'accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
-        Schema::table('payments', function (Blueprint $table) {
-            $table->dropForeign(['bank_account_id']);
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['paid_status', 'accounting_status']);
-            $table->dropColumn(['bank_account_id', 'accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
-        Schema::table('purchases', function (Blueprint $table) {
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['accounting_status']);
-            $table->dropColumn(['accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
-        Schema::table('sales', function (Blueprint $table) {
-            $table->dropForeign(['accounting_journal_id']);
-            $table->dropIndex(['accounting_status']);
-            $table->dropColumn(['accounting_status', 'accounting_journal_id', 'accounting_posted_at']);
-        });
-
         Schema::dropIfExists('bank_transactions');
         Schema::dropIfExists('bank_accounts');
         Schema::dropIfExists('accounting_account_mappings');
@@ -250,3 +148,4 @@ return new class extends Migration
         Schema::dropIfExists('accounting_accounts');
     }
 };
+

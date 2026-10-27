@@ -17,6 +17,9 @@ class CashReconciliationDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('outlet_name', function ($row) {
+                return $row->outlet ? $row->outlet->name : 'Central';
+            })
             ->addColumn('cashier_name', function ($row) {
                 return $row->user->name ?? '';
             })
@@ -132,7 +135,7 @@ class CashReconciliationDataTable extends DataTable
     public function query(CashReconciliation $model): QueryBuilder
     {        
         $query = $model->newQuery()
-            ->with(['user', 'createdBy', 'approvedBy'])
+            ->with(['user', 'createdBy', 'approvedBy', 'outlet'])
             ->orderBy('business_date', 'desc')
             ->orderBy('id', 'desc');
             
@@ -191,6 +194,7 @@ class CashReconciliationDataTable extends DataTable
     {
         $columns = [
             Column::make('business_date')->title('Date'),
+            Column::make('outlet_name')->title('Branch')->searchable(false),
             Column::make('cashier_name')->title('Cashier'),
             Column::make('expected_cash_sales')->title('Expected Sales'),
             Column::make('expected_cash_expenses')->title('Cash Expenses'),

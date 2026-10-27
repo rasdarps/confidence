@@ -67,6 +67,9 @@ class AllSalesDataTable extends DataTable
                 return '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons">' . implode('', $buttons) . '</div>';
             })
 
+            ->addColumn('outlet_name', function($row) {
+                return $row->outlet ? $row->outlet->name : 'Central Warehouse';
+            })
             ->addColumn('cancelled_status', function($row) {
                 if ($row->cancelled_at) {
                     return '<span class="badge bg-danger" title="' . e($row->cancellation_reason) . '">Cancelled</span>';
@@ -166,14 +169,23 @@ class AllSalesDataTable extends DataTable
     public function query(Sale $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with(['payment.customer', 'createdBy', 'cancelledBy'])
+            ->with(['payment.customer', 'createdBy', 'cancelledBy', 'outlet'])
             ->orderByDesc('date')
             ->orderByDesc('id');
 
         /** @var \App\Models\User|null $currentUser */
         $currentUser = auth()->user();
         if ($currentUser && $currentUser->hasRole('Cashier')) {
-            $query->where('created_by', $currentUser->id);
+            $outletId = $currentUser->assignedOutletId();
+            if ($outletId) {
+                $query->where('outlet_id', $outletId);
+            } else {
+                $query->where('created_by', $currentUser->id);
+            }
+        }
+
+        if ($outletId = $this->request()->get('outlet_id')) {
+            $query->where('outlet_id', $outletId);
         }
 
         // Apply filters
@@ -276,6 +288,7 @@ class AllSalesDataTable extends DataTable
         $columns = [
             Column::make('date'),
             Column::make('sale_no'),
+            Column::make('outlet_name')->title('Branch')->searchable(false),
             Column::make('customer_name')->title('Customer Name'),
             Column::make('payment_status_label')->title('Payment Status')->searchable(false),
             Column::make('amount')->title('Amount (Gh¢)'),

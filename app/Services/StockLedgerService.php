@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Outlet;
 use App\Models\StockLedger;
 
 class StockLedgerService
@@ -20,11 +21,19 @@ class StockLedgerService
             'adjustment_decrease',
             'purchase_cancel',
             'sale_cancel',
+            'transfer_out',
+            'transfer_in',
         ], true)) {
-            throw new \InvalidArgumentException('Invalid stock ledger movement type.');
+            throw new \InvalidArgumentException('Invalid stock ledger movement type: ' . $movementType);
+        }
+
+        $outletId = $payload['outlet_id'] ?? null;
+        if (! $outletId) {
+            $outletId = Outlet::where('is_central', true)->value('id') ?? Outlet::value('id') ?? 1;
         }
 
         return StockLedger::create([
+            'outlet_id' => $outletId,
             'product_id' => $payload['product_id'],
             'movement_type' => $movementType,
             'reference_type' => $payload['reference_type'] ?? 'unknown',

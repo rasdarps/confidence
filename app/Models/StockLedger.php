@@ -10,6 +10,7 @@ class StockLedger extends Model
     use HasFactory;
 
     protected $fillable = [
+        'outlet_id',
         'product_id',
         'movement_type',
         'reference_type',
@@ -29,6 +30,7 @@ class StockLedger extends Model
     ];
 
     protected $casts = [
+        'outlet_id' => 'integer',
         'product_id' => 'integer',
         'reference_id' => 'integer',
         'reference_detail_id' => 'integer',
@@ -53,6 +55,11 @@ class StockLedger extends Model
         static::deleting(function () {
             throw new \RuntimeException('Stock ledger is append-only and cannot be deleted.');
         });
+    }
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
     }
 
     public function product()

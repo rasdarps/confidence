@@ -21,7 +21,9 @@ return new class extends Migration
             $table->string('phone')->unique(); 
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->boolean('must_change_password')->default(false);
             $table->string('user_type')->nullable();
+            $table->unsignedBigInteger('outlet_id')->nullable();
 
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
@@ -30,6 +32,8 @@ return new class extends Migration
             $table->rememberToken();
             $table->timestamps();
             $table->softDeletes();
+
+            $table->foreign('outlet_id')->references('id')->on('outlets')->nullOnDelete();
             $table->foreign('updated_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('deleted_by')->references('id')->on('users')->nullOnDelete();

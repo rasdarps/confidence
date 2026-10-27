@@ -9,45 +9,41 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory, SoftDeletes;
-    use Auditable;
-    // protected $guarded = [];
+    use HasFactory, SoftDeletes, Auditable;
+
     protected $fillable = [
-    'name',
-    'unit_id',
-    'category_id',
-    'quantity',
-    'stock_level',
-    'barcode',
-    'created_by',
-    'updated_by',
-    'deleted_by',
-    'cost_price',
-    'selling_price',
-   
-];
+        'name',
+        'unit_id',
+        'category_id',
+        'barcode',
+        'cost_price',
+        'selling_price',
+        'created_by',
+        'updated_by',
+        'deleted_by',
+    ];
 
-protected $casts = [
-    'quantity' => 'double',
-    'stock_level' => 'double', 
-    'created_by' => 'integer',
-    'updated_by' => 'integer',
-    'deleted_by' => 'integer',
-    'cost_price' => 'decimal:2',
-    'selling_price' => 'decimal:2',
-];
-    /*public function supplier(){
-        return $this->belongsTo(Supplier::class,'supplier_id','id');
-    }*/
+    protected $casts = [
+        'created_by' => 'integer',
+        'updated_by' => 'integer',
+        'deleted_by' => 'integer',
+        'cost_price' => 'decimal:2',
+        'selling_price' => 'decimal:2',
+    ];
 
-     public function unit(){
+    protected $appends = [
+        'quantity',
+    ];
+
+    public function unit()
+    {
         return $this->belongsTo(Unit::class);
     }
 
-     public function category(){
+    public function category()
+    {
         return $this->belongsTo(Category::class);
     }
-
 
     public function purchasedetails()
     {
@@ -59,23 +55,81 @@ protected $casts = [
         return $this->hasMany(SaleDetail::class, 'product_id', 'id');
     }
 
-    public function scopeInStock($query)
+    public function outletStocks()
     {
-        return $query->where('quantity', '>', 0);
+        return $this->hasMany(OutletStock::class);
     }
 
-    public function scopeLowStock($query)
+    public function transferItems()
     {
-        return $query->whereColumn('quantity', '<=', 'stock_level')
-            ->where('quantity', '>', 0);
+        return $this->hasMany(StockTransferItem::class);
+    }
+
+    public function stockForOutlet(?int $outletId = null): ?OutletStock
+    {
+        if (! $outletId) {
+            return null;
+        }
+        return $this->outletStocks()->where('outlet_id', $outletId)->first();
+    }
+
+    public function quantityForOutlet(?int $outletId = null): float
+    {
+        if (! $outletId) {
+            return $this->quantity;
+        }
+        return (float) ($this->outletStocks()->where('outlet_id', $outletId)->value('quantity') ?? 0);
+    }
+
+    public function getQuantityAttribute(): float
+    {
+        return (float) ($this->relationLoaded('outletStocks')
+            ? $this->outletStocks->sum('quantity')
+            : $this->outletStocks()->sum('quantity'));
+    }
+
+    public function getTotalQuantityAttribute(): float
+    {
+        return $this->getQuantityAttribute();
+    }
+
+    public function getStockLevelAttribute(): float
+    {
+        return (float) ($this->relationLoaded('outletStocks')
+            ? $this->outletStocks->sum('stock_level')
+            : $this->outletStocks()->sum('stock_level'));
+    }
+
+    public function scopeInStock($query, ?int $outletId = null)
+    {
+        return $query->whereHas('outletStocks', function ($q) use ($outletId) {
+            if ($outletId) {
+                $q->where('outlet_id', $outletId);
+            }
+            $q->where('quantity', '>', 0);
+        });
+    }
+
+    public function scopeLowStock($query, ?int $outletId = null)
+    {
+        return $query->whereHas('outletStocks', function ($q) use ($outletId) {
+            if ($outletId) {
+                $q->where('outlet_id', $outletId);
+            }
+            $q->whereColumn('quantity', '<=', 'stock_level')->where('quantity', '>', 0);
+        });
     }
     
-    public function scopeOutOfStock($query)
+    public function scopeOutOfStock($query, ?int $outletId = null)
     {
-        return $query->where('quantity', '<=', 0);
+        return $query->whereDoesntHave('outletStocks', function ($q) use ($outletId) {
+            if ($outletId) {
+                $q->where('outlet_id', $outletId);
+            }
+            $q->where('quantity', '>', 0);
+        });
     }
 
-    // User relationships - NOW PROPERLY LINKED
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -91,12 +145,11 @@ protected $casts = [
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-     public function productPrice()
+    public function productPrice()
     {
         return $this->hasMany(ProductPrice::class, 'product_id', 'id');
     }
 
-    // Generate deterministic numeric EAN-13 barcode: 200 + 9-digit product id + check digit
     public static function generateBarcode(string $name, int $id, $createdAt = null): string
     {
         $base12 = '200' . str_pad((string) $id, 9, '0', STR_PAD_LEFT);
@@ -114,41 +167,30 @@ protected $casts = [
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
             $digit = (int) $base12[$i];
-            // EAN-13 applies weight 1,3 alternating from the left for the first 12 digits.
             $sum += ($i % 2 === 0) ? $digit : $digit * 3;
         }
 
         return (10 - ($sum % 10)) % 10;
     }
 
-    /**
-     * Check if product is in stock
-     */
-    public function isInStock()
+    public function isInStock(?int $outletId = null): bool
     {
-        return $this->quantity > 0;
+        return $this->quantityForOutlet($outletId) > 0;
     }
 
-
-      /**
-     * Check if product is low on stock
-     */
-    public function isLowStock()
+    public function isLowStock(?int $outletId = null): bool
     {
-        return $this->quantity <= $this->stock_level && $this->quantity > 0;
-    }
-    /**
-     * Check if product is out of stock
-     */
-    public function isOutOfStock()
-    {
-        return $this->quantity <= 0;
+        $qty = $this->quantityForOutlet($outletId);
+        $stock = $outletId ? ($this->stockForOutlet($outletId)?->stock_level ?? 0) : $this->stock_level;
+        return $qty <= $stock && $qty > 0;
     }
 
-/**
-     * Get stock status label
-     */
-    public function getStockStatusAttribute()
+    public function isOutOfStock(?int $outletId = null): bool
+    {
+        return $this->quantityForOutlet($outletId) <= 0;
+    }
+
+    public function getStockStatusAttribute(): string
     {
         if ($this->isOutOfStock()) {
             return 'Out of Stock';
@@ -157,12 +199,8 @@ protected $casts = [
         }
         return 'In Stock';
     }
-    
 
-    /**
-     * Get stock status badge class
-     */
-    public function getStockBadgeClassAttribute()
+    public function getStockBadgeClassAttribute(): string
     {
         if ($this->isOutOfStock()) {
             return 'danger';
@@ -172,4 +210,3 @@ protected $casts = [
         return 'success';
     }
 }
-

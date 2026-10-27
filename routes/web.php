@@ -14,6 +14,7 @@ use App\Http\Controllers\Backend\DailyTransactionEmailController;
 use App\Http\Controllers\Backend\DashboardController;
 use App\Http\Controllers\Backend\ExpenseCategoryController;
 use App\Http\Controllers\Backend\ExpenseVoucherController;
+use App\Http\Controllers\Backend\OutletController;
 use App\Http\Controllers\Backend\SaleController;
 use App\Http\Controllers\Backend\ProductController;
 use App\Http\Controllers\Backend\ProductPriceController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\Backend\ReportController;
 use App\Http\Controllers\Backend\RoleController;
 use App\Http\Controllers\Backend\StockController;
 use App\Http\Controllers\Backend\StockAdjustmentController;
+use App\Http\Controllers\Backend\StockTransferController;
 use App\Http\Controllers\Backend\SupplierController;
 use App\Http\Controllers\Backend\SettingsController;
 use App\Http\Controllers\Backend\UnitController;
@@ -195,6 +197,15 @@ Route::prefix('admin')->group(function () {
                 Route::delete('/destroy/{id}', [StockAdjustmentController::class, 'destroy'])->name('destroy');
             });
 
+            Route::prefix('stock-transfers')->name('stock-transfers.')->group(function () {
+                Route::get('/', [StockTransferController::class, 'index'])->name('index');
+                Route::get('/create', [StockTransferController::class, 'create'])->name('create');
+                Route::post('/store', [StockTransferController::class, 'store'])->name('store');
+                Route::get('/show/{id}', [StockTransferController::class, 'show'])->name('show');
+                Route::post('/receive/{id}', [StockTransferController::class, 'receive'])->name('receive');
+                Route::post('/cancel/{id}', [StockTransferController::class, 'cancel'])->name('cancel');
+            });
+
             Route::prefix('cash-reconciliations')->name('cash-reconciliations.')->group(function () {
                 Route::get('/', [CashReconciliationController::class, 'index'])->name('index');
                 Route::get('/create', [CashReconciliationController::class, 'create'])->name('create');
@@ -247,6 +258,15 @@ Route::prefix('admin')->group(function () {
             Route::get('/edit/{id}', [CompanyController::class, 'edit'])->name('edit');
             Route::patch('/update/{id}', [CompanyController::class, 'update'])->name('update');
             Route::delete('/destroy/{id}', [CompanyController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('outlets')->name('outlets.')->group(function () {
+            Route::get('/', [OutletController::class, 'index'])->name('index');
+            Route::get('/create', [OutletController::class, 'create'])->name('create');
+            Route::post('/store', [OutletController::class, 'store'])->name('store');
+            Route::get('/edit/{id}', [OutletController::class, 'edit'])->name('edit');
+            Route::patch('/update/{id}', [OutletController::class, 'update'])->name('update');
+            Route::delete('/destroy/{id}', [OutletController::class, 'destroy'])->name('destroy');
 
         });
 

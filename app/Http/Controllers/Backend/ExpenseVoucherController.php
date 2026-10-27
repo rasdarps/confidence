@@ -100,7 +100,9 @@ class ExpenseVoucherController extends Controller
             DB::transaction(function () use ($validatedData) {
                 $lineTotal = collect($validatedData['amount'])->map(fn ($v) => (float) $v)->sum();
 
+                $outletId = Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
                 $voucher = ExpenseVoucher::create([
+                    'outlet_id' => $outletId,
                     'voucher_date' => $validatedData['voucher_date'],
                     'reference_no' => $validatedData['reference_no'] ?? null,
                     'total_amount' => $lineTotal,

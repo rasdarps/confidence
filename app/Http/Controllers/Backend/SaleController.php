@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Company;
 use App\Models\Customer;
+use App\Models\Outlet;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\SaleReceiptEvent;
@@ -49,8 +50,9 @@ class SaleController extends Controller
           $customers = Customer::orderBy('name')->get();
           $sales = Sale::orderBy('sale_no')->get();
           $users = User::orderBy('name')->get();
-                    $isRestrictedToOwnSales = auth()->check() && auth()->user()->hasRole('Cashier');
-                    return $dataTable->render('backend.sale.index', compact('customers', 'sales', 'users', 'isRestrictedToOwnSales'));
+          $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+          $isRestrictedToOwnSales = auth()->check() && auth()->user()->hasRole('Cashier');
+          return $dataTable->render('backend.sale.index', compact('customers', 'sales', 'users', 'outlets', 'isRestrictedToOwnSales'));
 
     }
 
@@ -79,6 +81,10 @@ class SaleController extends Controller
         $allowNegativeStock = (bool) config('pos.allow_negative_stock', false);
         $preventBackdatedInvoices = (bool) config('pos.prevent_backdated_invoices', false);
         $allowManualDiscountEntryByStaff = (bool) config('pos.allow_manual_discount_entry_by_staff', true);
+        $currentOutletId = auth()->check() ? auth()->user()->assignedOutletId() : null;
+        if (!$currentOutletId) {
+            $currentOutletId = Outlet::where('is_central', true)->value('id') ?? Outlet::orderBy('id')->value('id');
+        }
 
         return view('backend.sale.create',compact(
             'sale_no',
@@ -87,6 +93,7 @@ class SaleController extends Controller
             'costomer',
             'products',
             'unit',
+            'currentOutletId',
             'allowNegativeStock',
             'preventBackdatedInvoices',
             'allowManualDiscountEntryByStaff'
@@ -276,7 +283,10 @@ class SaleController extends Controller
                         ->value('max_no');
                     $nextNo = str_pad($maxInvoiceNo + 1, 2, '0', STR_PAD_LEFT);
 
+                    $outletId = Auth::user()->outlet_id ?? (int) $request->input('outlet_id') ?: (\App\Models\Outlet::where('is_central', true)->value('id') ?? 1);
+
                     $Sale = Sale::create([
+                        'outlet_id' => $outletId,
                         'sale_no' => $nextNo,
                         'date' => $request->date,
                         'description' => $request->description,
@@ -313,8 +323,16 @@ class SaleController extends Controller
                         $sale_details->unit_id = $unitId;
                         $sale_details->save();
 
-                        // Product row already locked at loop start.
-                        $beforeQty = (float) $product->quantity;
+                        $outletStock = \App\Models\OutletStock::firstOrCreate([
+                            'outlet_id' => $outletId,
+                            'product_id' => $product->id,
+                        ], [
+                            'quantity' => 0,
+                            'stock_level' => 0,
+                        ]);
+                        $outletStock = \App\Models\OutletStock::where('id', $outletStock->id)->lockForUpdate()->first();
+
+                        $beforeQty = (float) $outletStock->quantity;
                         $lineQty = (float) $sale_details->selling_qty;
 
                         if ($lineQty <= 0) {
@@ -330,10 +348,11 @@ class SaleController extends Controller
                         }
 
                         $afterQty = $beforeQty - $lineQty;
-                        $product->quantity = $afterQty;
-                        $product->save();
+                        $outletStock->quantity = $afterQty;
+                        $outletStock->save();
 
                         app(StockLedgerService::class)->record([
+                            'outlet_id' => $outletId,
                             'product_id' => $product->id,
                             'movement_type' => 'sale',
                             'reference_type' => 'Sale',
@@ -479,18 +498,27 @@ class SaleController extends Controller
                 }
 
                 // Restore stock for every line item
+                $outletId = $Sale->outlet_id ?? Auth::user()->outlet_id ?? 1;
                 foreach ($Sale->sale_details as $detail) {
-                    $product = Product::whereKey($detail->product_id)->lockForUpdate()->first();
-                    if ($product) {
-                        $beforeQty = (float) $product->quantity;
+                    $outletStock = \App\Models\OutletStock::firstOrCreate([
+                        'outlet_id' => $outletId,
+                        'product_id' => $detail->product_id,
+                    ], [
+                        'quantity' => 0,
+                        'stock_level' => 0,
+                    ]);
+                    $outletStock = \App\Models\OutletStock::where('id', $outletStock->id)->lockForUpdate()->first();
+                    if ($outletStock) {
+                        $beforeQty = (float) $outletStock->quantity;
                         $lineQty = (float) $detail->selling_qty;
                         $afterQty = $beforeQty + $lineQty;
-                        $product->quantity = $afterQty;
-                        $product->save();
+                        $outletStock->quantity = $afterQty;
+                        $outletStock->save();
 
                         //StockLedgerService record to log stock movement
                         app(StockLedgerService::class)->record([
-                            'product_id' => $product->id,
+                            'outlet_id' => $outletId,
+                            'product_id' => $detail->product_id,
                             'movement_type' => 'sale_cancel',
                             'reference_type' => 'Sale',
                             'reference_id' => $Sale->id,
@@ -623,7 +651,7 @@ class SaleController extends Controller
             $sale->save();
             $this->recordReceiptEvent($sale, 'original', null, $request);
 
-            return $sale->load(['sale_details.category', 'sale_details.product', 'createdBy']);
+            return $sale->load(['sale_details.category', 'sale_details.product', 'createdBy', 'outlet']);
         });
         $companyInfo = Company::first();
         return view('backend.sale.sale_receipt', compact('Sale', 'companyInfo') + ['printMode' => 'original']);
@@ -650,7 +678,7 @@ class SaleController extends Controller
 
             $this->recordReceiptEvent($sale, 'reprint', trim($validated['reason']), $request);
 
-            return $sale->load(['sale_details.category', 'sale_details.product', 'createdBy']);
+            return $sale->load(['sale_details.category', 'sale_details.product', 'createdBy', 'outlet']);
         });
 
         $companyInfo = Company::first();

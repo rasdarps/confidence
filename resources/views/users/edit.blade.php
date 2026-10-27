@@ -105,6 +105,21 @@
                                                 </select>
                                             </div>
                                         </div>
+
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="outlet_id"><strong>Assigned Outlet / Branch:</strong></label>
+                                                <select id="outlet_id" name="outlet_id" class="form-control select2">
+                                                    <option value="">Central / HQ (All Outlets)</option>
+                                                    @foreach($outlets as $outlet)
+                                                        <option value="{{ $outlet->id }}" {{ old('outlet_id', $user->outlet_id) == $outlet->id ? 'selected' : '' }}>
+                                                            {{ $outlet->name }} ({{ $outlet->code }}) {{ $outlet->is_central ? '- Central Warehouse' : '' }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                                <small class="text-muted">Branch staff will sell from and receive stock at their assigned branch.</small>
+                                            </div>
+                                        </div>
                                     
                                     </div>
                                     {{-- row 1 ends --}}

@@ -16,21 +16,26 @@ class Payment extends Model
     {
         $viewer = auth()->user();
         if ($viewer instanceof User && $viewer->hasRole('Cashier')) {
-            $query->whereHas('sale', function (Builder $saleQuery) use ($viewer) {
-                $saleQuery->where('created_by', $viewer->id);
+            $outletId = $viewer->assignedOutletId();
+            $query->whereHas('sale', function (Builder $saleQuery) use ($viewer, $outletId) {
+                if ($outletId) {
+                    $saleQuery->where('outlet_id', $outletId);
+                } else {
+                    $saleQuery->where('created_by', $viewer->id);
+                }
             });
         }
 
         return $query;
     }
 
-    public function customer(){
-        return $this->belongsTo(Customer::class,'customer_id','id');
-    } 
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id', 'id');
+    }
 
     public function sale()
     {
         return $this->belongsTo(Sale::class, 'sale_id', 'id');
     }
-} 
- 
+}

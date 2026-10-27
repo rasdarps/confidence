@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Unit;
+use App\Models\Outlet;
 use App\Models\User;
  
 class StockController extends Controller
@@ -32,8 +33,9 @@ class StockController extends Controller
     public function StockReport(StocksDataTable $dataTable){
 
        $units = Unit::orderBy('name')->get();
-       $categories = Category::orderBy('name')->get(); 
-         return $dataTable->render('backend.stock.stock_report', compact('units', 'categories'));
+       $categories = Category::orderBy('name')->get();
+       $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+       return $dataTable->render('backend.stock.stock_report', compact('units', 'categories', 'outlets'));
 
     }
 

@@ -133,7 +133,9 @@ class CashReconciliationController extends Controller
             $varianceType = 'shortage';
         }
 
+        $outletId = Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
         CashReconciliation::create([
+            'outlet_id' => $outletId,
             'business_date' => $validated['business_date'],
             'user_id' => $userId,
             'opening_float' => $openingFloat,

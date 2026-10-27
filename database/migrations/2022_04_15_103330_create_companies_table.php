@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('phone')->unique();
             $table->string('email')->unique();
             $table->string('tin_number', 20)->nullable()->unique();
+            $table->boolean('enforce_previous_day_reconciliation')->default(false);
             // Fixed: Proper foreign key relationships to users table
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();

@@ -18,9 +18,17 @@ class StocksDataTable extends DataTable
      */
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
-        return (new EloquentDataTable($query))
-            ->addColumn('action', 'stocks.action')
+        $outletId = $this->request()->get('outlet_id')
+            ?: (auth()->check() ? auth()->user()->assignedOutletId() : null);
 
+        return (new EloquentDataTable($query))
+            ->editColumn('quantity', function ($row) use ($outletId) {
+                if ($outletId) {
+                    return number_format((float) $row->quantityForOutlet($outletId), 2);
+                }
+                return number_format((float) $row->totalStock(), 2);
+            })
+            ->addColumn('action', 'stocks.action')
             ->rawColumns(['action'])
             ->setRowId('id');
     }
@@ -31,7 +39,7 @@ class StocksDataTable extends DataTable
     public function query(Product $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with(['category', 'unit'])
+            ->with(['category', 'unit', 'outletStocks'])
             ->orderBy('products.name', 'asc');
 
         if ($categoryId = $this->request()->get('category_id')) {

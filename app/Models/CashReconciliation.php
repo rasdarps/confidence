@@ -12,6 +12,7 @@ class CashReconciliation extends Model
     use Auditable;
 
     protected $fillable = [
+        'outlet_id',
         'business_date',
         'user_id',
         'opening_float',
@@ -36,6 +37,7 @@ class CashReconciliation extends Model
     ];
 
     protected $casts = [
+        'outlet_id' => 'integer',
         'business_date' => 'date',
         'user_id' => 'integer',
         'opening_float' => 'decimal:2',
@@ -54,9 +56,24 @@ class CashReconciliation extends Model
         'accounting_posted_at' => 'datetime',
     ];
 
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class);
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function reversedBy()
+    {
+        return $this->belongsTo(User::class, 'reversed_by');
     }
 
     public function createdBy()
@@ -69,13 +86,8 @@ class CashReconciliation extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    public function approvedBy()
+    public function accountingJournal()
     {
-        return $this->belongsTo(User::class, 'approved_by');
-    }
-
-    public function reversedBy()
-    {
-        return $this->belongsTo(User::class, 'reversed_by');
+        return $this->belongsTo(AccountingJournal::class, 'accounting_journal_id');
     }
 }

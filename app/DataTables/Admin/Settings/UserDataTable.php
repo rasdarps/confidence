@@ -25,6 +25,11 @@ class UserDataTable extends DataTable
             ->addColumn('roles', function ($row) {
                 return $row->getRoleNames()->implode(', ');
             })
+            ->addColumn('outlet', function ($row) {
+                return $row->outlet
+                    ? '<span class="badge bg-info text-dark">' . e($row->outlet->name) . '</span>'
+                    : '<span class="badge bg-secondary">Central / HQ</span>';
+            })
             ->addColumn('edit_button', function ($row) {
                 $encryptedId = Crypt::encrypt($row->id);
                 $editUrl = route('users.edit', $encryptedId);
@@ -78,7 +83,7 @@ class UserDataTable extends DataTable
                     ? Carbon::parse($row->updated_at)->format('jS F, Y g:i A')
                     : '';
             })
-            ->rawColumns(['edit_button'])
+            ->rawColumns(['edit_button', 'outlet'])
             ->setRowId('id');
     }
 
@@ -88,6 +93,7 @@ class UserDataTable extends DataTable
     public function query(User $model): QueryBuilder
     {
         $query = $model->newQuery()
+            ->with('outlet')
             ->where('user_type', '!=', 'Super Admin');
 
         if (auth()->check()) {
@@ -124,6 +130,7 @@ class UserDataTable extends DataTable
             Column::make('username'),
             Column::make('email'),
             Column::make('roles')->searchable(false),
+            Column::make('outlet')->title('Branch / Warehouse')->searchable(false),
             Column::make('created_at'),
             Column::make('updated_at'),
         ];

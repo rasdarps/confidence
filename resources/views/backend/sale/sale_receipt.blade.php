@@ -49,10 +49,15 @@
                                             <h5 class="receipt-header-line">MANAGER REPRINT</h5>
                                         @endif
                                         <h5 class="receipt-header-line">{{ $companyInfo->name }}
-                                            <br>
-                                        {{ $companyInfo->address }}
-                                        <br>
-                                        {{ $companyInfo->phone }} |  TIN: {{ $companyInfo->tin_number ?? 'N/A' }}</h5>
+                                            @if($Sale->outlet)
+                                                <br><span style="font-size: 13px; font-weight: 600;">Branch: {{ $Sale->outlet->name }}</span>
+                                                @if($Sale->outlet->address)<br><span style="font-size: 11px;">{{ $Sale->outlet->address }}</span>@endif
+                                                @if($Sale->outlet->phone)<br><span style="font-size: 11px;">Tel: {{ $Sale->outlet->phone }}</span>@endif
+                                            @else
+                                                <br>{{ $companyInfo->address }}
+                                                <br>{{ $companyInfo->phone }}
+                                            @endif
+                                            |  TIN: {{ $companyInfo->tin_number ?? 'N/A' }}</h5>
                                     </div>
                                     <hr>
                                     <div class="row">

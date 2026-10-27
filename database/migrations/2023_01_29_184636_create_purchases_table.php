@@ -18,11 +18,18 @@ return new class extends Migration
             $table->string('purchase_no')->unique();
             $table->date('date');
             $table->text('description')->nullable(); 
+
+            // Cancellation Tracking
             $table->timestamp('cancelled_at')->nullable();
             $table->unsignedBigInteger('cancelled_by')->nullable();
             $table->string('cancellation_reason', 500)->nullable();
+
+            // Accounting Integration
+            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted');
+            $table->unsignedBigInteger('accounting_journal_id')->nullable();
+            $table->timestamp('accounting_posted_at')->nullable();
             
-            // Fixed: Proper foreign key relationships to users table
+            // Audit Fields
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->unsignedBigInteger('deleted_by')->nullable();
@@ -30,10 +37,19 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
 
-            // Add foreign key constraints for created_by and updated_by
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('deleted_by')->references('id')->on('users')->onDelete('set null');
+            // Foreign key constraints
+            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
+            $table->foreign('cancelled_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('created_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('updated_by')->references('id')->on('users')->nullOnDelete();
+            $table->foreign('deleted_by')->references('id')->on('users')->nullOnDelete();
+
+            // Indexes
+            $table->index('purchase_no');
+            $table->index('date');
+            $table->index('accounting_status');
+            $table->index(['created_by', 'date']);
+            $table->index('created_by');
         });
     }
  

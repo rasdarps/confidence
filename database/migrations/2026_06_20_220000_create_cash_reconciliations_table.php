@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('cash_reconciliations', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('outlet_id');
             $table->date('business_date');
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
 
@@ -24,7 +25,7 @@ return new class extends Migration
 
             $table->string('status', 30)->default('submitted');
 
-             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('approved_at')->nullable();
 
             $table->foreignId('reversed_by')->nullable()->constrained('users')->nullOnDelete();
@@ -32,17 +33,25 @@ return new class extends Migration
             
             $table->text('reversal_reason')->nullable();
 
+            // Accounting Integration
+            $table->enum('accounting_status', ['unposted', 'posted', 'reversed'])->default('unposted');
+            $table->unsignedBigInteger('accounting_journal_id')->nullable();
+            $table->timestamp('accounting_posted_at')->nullable();
+
             $table->text('notes')->nullable();
 
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
 
+            $table->foreign('outlet_id')->references('id')->on('outlets')->restrictOnDelete();
+            $table->foreign('accounting_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
+
             $table->unique(['business_date', 'user_id']);
+            $table->index(['outlet_id', 'business_date']);
             $table->index(['user_id', 'business_date']);
             $table->index(['business_date', 'status']);
-
-            
+            $table->index('accounting_status');
         });
     }
 
