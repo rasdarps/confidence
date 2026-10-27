@@ -1,0 +1,296 @@
+DARPPOS CREDIT - REPORTS VIDEO RECORDING SCRIPT
+================================================
+
+PURPOSE
+-------
+This companion script focuses on the reports related to the workflows in the
+DarpPOS Credit walkthrough. Bracketed text is an on-screen direction; quoted
+text is suggested narration. Use the report names and filters that are
+actually available to the signed-in demo account.
+
+
+BEFORE RECORDING REPORTS
+------------------------
+- Use a demo environment with fictional data and a date range containing
+  sample sales, purchases, payments, expenses, stock movements, and
+  reconciliations.
+- Sign in with an account that has access to the reports being shown.
+- Clear report filters before beginning each demonstration. Apply one or two
+  useful filters on camera, then show the resulting rows and totals.
+- Use dates and figures visible on screen. Avoid claiming that all reports
+  support the same filters, totals, exports, or print options.
+- Reports are permission-controlled. If a report is not available, skip it
+  or demonstrate it with an appropriately authorized demo account.
+- Do not expose real customer, supplier, staff, account, or financial data.
+
+
+1. PURCHASE LIST AND PURCHASE REPORTS
+-------------------------------------
+
+[ON SCREEN]
+Open Transactions > Manage Transactions > Purchase > All Purchase. Show the
+purchase list, locate the demo purchase, and open its details. If available,
+apply a date range or supplier filter and show the result. Show the print
+action for the purchase or list if available.
+Then open Reports > Transactions Report > Purchase Lines Report. Select a
+short date range and, if available, a supplier or product filter. Run the
+report and show the purchase line details.
+If a purchase has been edited, open Reports > Audit Report > Purchase Edit
+Trail and locate the demo record.
+
+[NARRATION]
+"All Purchase is the operational list for finding and reviewing purchase
+invoices. We can locate a purchase and open its details, and print the
+invoice or list where the available actions allow it.
+
+"For a more detailed transaction view, the Purchase Lines Report shows
+purchase line activity. We can choose a date range and use the filters
+available in this report to narrow the results.
+
+"When purchase editing is enabled, the Purchase Edit Trail provides an audit
+view of purchase changes. Access to these reports and actions depends on the
+user's permissions."
+
+
+2. SALES LIST AND SALES REPORTS
+-------------------------------
+
+[ON SCREEN]
+Open Transactions > Manage Transactions > Sales > All Sales. Show the list,
+locate the demo sale, open it, and show its receipt-print option. Use a date
+range, customer, payment status, or other filter if available; clear filters
+after demonstrating.
+Then open Reports > Transactions Report > Sales Lines Report. Apply a short
+date range and a demo customer or product filter if available. Run the report
+and show the line details.
+
+[NARRATION]
+"All Sales is where authorized users find and review sales invoices. We can
+open a sale to inspect its details and print its receipt where available.
+
+"The Sales Lines Report provides a detailed view of sold items. We can use
+the filters offered by this report, such as a date range or customer, to
+focus on the activity we want to review."
+
+
+3. CUSTOMER AND SUPPLIER CREDIT REPORTS
+---------------------------------------
+
+[ON SCREEN]
+Open Reports > Transactions Report > Sales Credit Movement Report. Select a
+date range and customer filter if available. Show the credit activity.
+Then open A/R Aging under Reports > Accounting Reports and show the customer
+receivables aging view.
+Open Purchase Credit Movement Report and filter by date range or supplier if
+available. Then open A/P Aging and show the supplier payables aging view.
+
+[NARRATION]
+"Credit movement reports help review customer credit created and paid over a
+selected period. The Sales Credit Movement Report focuses on customer
+receivables activity, while A/R Aging organizes outstanding customer
+balances by age.
+
+"For suppliers, the Purchase Credit Movement Report shows supplier credit
+movement, and A/P Aging helps review outstanding payables by age. The
+reports answer related but different questions: movement shows activity,
+while aging focuses on current outstanding balances."
+
+
+4. CASH MOVEMENT AND PAYMENT REPORTS
+------------------------------------
+
+[ON SCREEN]
+Open Reports > Transactions Report > Sales Cash Movement Report. Select a
+date range and any available user/customer filters, then run the report.
+Show Purchase Cash Movement Report next, using a matching date range. Point
+out the difference between cash movement and invoice totals without
+combining the two.
+
+[NARRATION]
+"Cash movement reports focus on recorded cash activity rather than simply
+the total value of invoices. Sales Cash Movement and Purchase Cash Movement
+let us review the related collections and payments for a selected period.
+Available filters vary by report, so we will use only the options shown on
+screen."
+
+
+5. EXPENSE REPORT
+-----------------
+
+[ON SCREEN]
+Open Reports > Transactions Report > Expense Report. Select a date range and
+an expense category if the filter is available. Run the report and show the
+expense entries or summary. If supported, compare the report with the demo
+expense voucher from the transaction list.
+
+[NARRATION]
+"The Expense Report helps review recorded expenses over time and by category.
+We can use the date range and any available category filters to focus on
+particular spending. The report is useful for checking expense activity
+against the vouchers entered in the system."
+
+
+6. CATEGORY, UNIT, PRODUCT, AND STOCK REPORTS
+---------------------------------------------
+
+[ON SCREEN]
+Open Reports > Stock Report > Summary Stock Report. Show the available
+product, category, and unit information, and apply a product, category, or
+unit filter only if that control is present.
+Open Product-wise Stock Trail and select the demo product to show its
+movement history.
+Open Stock Value Report and show the valuation columns that are available.
+Explain that values use the report's displayed valuation basis; do not call
+stock value realized revenue or profit.
+
+[NARRATION]
+"Stock reports connect product setup to inventory activity. The Summary
+Stock Report provides a current stock summary by product, category, and
+unit. The Product-wise Stock Trail shows movement history for an individual
+product.
+
+"The Stock Value Report provides an inventory valuation view. This is the
+value of stock on hand using the system's stored product prices; it is not
+the same as sales revenue or realized profit."
+
+[RECORDING NOTE]
+The report list documents product, category, and unit summaries. Do not
+promise a separate report for each setup type or a particular filter unless
+it is visibly available in the version being recorded.
+
+
+7. STOCK ADJUSTMENT AND PRICE HISTORY REPORTS
+---------------------------------------------
+
+[ON SCREEN]
+Open Reports > Stock Report > Stock Adjustment Report. Select a short date
+range or a demo product if available and locate the stock adjustment shown
+in the main walkthrough.
+Then open Product Price History and locate a demo product whose price was
+updated. Show the old and new price details or change history available on
+screen.
+
+[NARRATION]
+"The Stock Adjustment Report records inventory changes entered outside
+normal sales and purchases. We can locate the demo adjustment and review its
+details using the filters provided.
+
+"Product Price History helps review price changes after an update. Together,
+these reports provide a useful record of inventory corrections and price
+updates."
+
+
+8. STOCK AND PURCHASE AUDIT REPORTS
+-----------------------------------
+
+[ON SCREEN]
+Open Reports > Audit Report > Stock Movement Trail. Select the demo product
+and a short date range if those filters are available. Show the activity
+around the purchase, sale, or stock adjustment demonstrated earlier.
+Open Purchase Edit Trail and show the change history for an edited demo
+purchase, if one exists.
+
+[NARRATION]
+"Audit reports help investigate how records changed. Stock Movement Trail
+shows product movement history, while Purchase Edit Trail shows purchase
+change history. These views are useful when reviewing inventory activity
+or tracing an authorized purchase edit."
+
+
+9. CASH RECONCILIATION REPORT AND END-OF-DAY REVIEW
+--------------------------------------------------
+
+[ON SCREEN]
+Open Transactions > Manage Transactions > Cash Reconcile. Show the Cash
+Reconciliations list. Set a From Date and To Date to narrow the business
+dates, then use Accounting Status to filter for Posted, Unposted, or Reversed
+entries. If signed in as a cashier, show that the list is restricted to the
+cashier's own reconciliations.
+Open a demo reconciliation. Show its business date, cashier, status,
+opening float, expected cash sales, expected cash expenses, expected closing
+cash, physical counted cash, variance, and variance type. Show approval
+details if the reconciliation is approved. Return to the list and, if
+relevant, open related daily transaction or cash movement reports for the
+same date.
+
+[NARRATION]
+"The Cash Reconciliations list provides a report-style view of daily cash
+reconciliations. We can filter by business date and accounting posting
+status, then open an entry to review its expected cash sales and expenses,
+expected closing cash, physical count, variance, and variance type.
+
+"The detail view also shows whether a reconciliation is submitted, approved
+and locked, or reopened, along with approval details when available. Cashiers
+see their own reconciliations, while authorized managers and supervisors can
+review reconciliations across cashiers. Related transaction and cash movement
+reports can provide context for the same business date."
+
+[RECORDING NOTE]
+This reconciliation report is the Cash Reconciliations list under
+Transactions, not a separate item under the Reports menu. Its date and
+accounting-status filters and record details are permission-controlled.
+
+
+10. ACCOUNTING REPORTS FOR BANK, CAPITAL, AND LOAN ACTIVITY
+----------------------------------------------------------
+
+[ON SCREEN]
+Open Reports > Accounting Reports. Show Trial Balance, then General Ledger.
+If possible, select the relevant demo account and a date range that includes
+the bank, owner capital, or loan entry from the earlier walkthrough.
+Show Income Statement, Balance Sheet, and Cash Flow for a suitable period.
+Show A/R Aging and A/P Aging only if they have not already been demonstrated.
+Use the available print or PDF export action for the Balance Sheet if present.
+
+[NARRATION]
+"Accounting reports bring account-level activity and business position
+together. Trial Balance summarizes debit and credit balances, and General
+Ledger shows activity for individual accounts. These reports can help trace
+the accounting entries associated with bank, capital, and loan activity.
+
+"The Income Statement summarizes income and expenses. The Balance Sheet
+shows assets, liabilities, and equity, and Cash Flow summarizes cash
+movement. A Balance Sheet print or PDF export is available where supported.
+The specific account filters and output options depend on the report."
+
+
+11. REPORTS QUICK TOUR
+----------------------
+
+[ON SCREEN]
+Show the Reports menu and briefly visit Transactions Report, Stock Report,
+Audit Report, and Accounting Reports. Pause on the report names relevant to
+the earlier demonstrations. End on the report most useful to the intended
+audience.
+
+[NARRATION]
+"DarpPOS Credit groups its reports into transaction, stock, audit, and
+accounting sections. Transaction reports cover sales, purchases, cash and
+credit movement, profit, ledger summaries, and expenses. Stock reports
+cover inventory balances, valuation, adjustments, movement, and price
+history. Audit reports support review of purchase edits and stock movement.
+Accounting reports provide financial statements, ledger details, and
+receivables and payables aging.
+
+"Report access is permission-based, and each report may offer different
+filters and print or export options. This walkthrough demonstrates the
+reports available to the selected demo role."
+
+
+OPTIONAL REPORT RECORDING CHECKLIST
+-----------------------------------
+[ ] All Purchase list and Purchase Lines Report are shown.
+[ ] Purchase Edit Trail is shown if there is an edited demo purchase.
+[ ] All Sales list and Sales Lines Report are shown.
+[ ] Sales and purchase cash movement reports are shown.
+[ ] Sales and purchase credit movement and A/R and A/P Aging are shown.
+[ ] Expense Report is shown with a relevant date/category filter if available.
+[ ] Summary Stock, Product-wise Stock Trail, and Stock Value reports are shown.
+[ ] Stock Adjustment Report and Product Price History are shown.
+[ ] Stock Movement Trail and Purchase Edit Trail are shown if demo data allows.
+[ ] Cash Reconciliations report/list, date and accounting-status filters, variance,
+    and approval state are shown.
+[ ] Trial Balance, General Ledger, Income Statement, Balance Sheet, and Cash Flow
+    are shown as relevant to the intended video.
+[ ] No unsupported report, filter, print, or export behavior is claimed.
+[ ] All visible demo data is fictional and non-confidential.
