@@ -55,3 +55,4 @@
 @section('scripts')
     {{ $dataTable->scripts() }}
 @endsection
+

@@ -23,7 +23,18 @@ class UnitsDataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('action', 'units.action')
-             ->addColumn('edit_button', function($row) {
+            ->addColumn('scope', function($row) {
+                return '<span class="badge bg-info text-white"><i class="fas fa-globe me-1"></i> Global Master</span>';
+            })
+            ->editColumn('products_count', function($row) {
+                return '<span class="badge bg-light text-dark border">' . number_format($row->products_count ?? 0) . ' items</span>';
+            })
+            ->addColumn('edit_button', function($row) {
+                    $user = auth()->user();
+                    if (!$user || !$user->isCentral()) {
+                        return '<span class="badge bg-secondary text-white" title="Managed centrally by HQ"><i class="fas fa-lock me-1"></i> Central Managed</span>';
+                    }
+
                     $editUrl = route('units.edit', Crypt::encrypt($row->id));
                     $deleteUrl = route('units.destroy', Crypt::encrypt($row->id));
                     $csrf = csrf_field();
@@ -35,8 +46,8 @@ class UnitsDataTable extends DataTable
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                             '.$csrf.'
-                            <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                                <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                            <button class="btn-action-edit table-edit-btn" title="Edit Unit">
+                                <i class="fas fa-edit"></i>
                             </button>
                         </form>';
                     }
@@ -46,8 +57,8 @@ class UnitsDataTable extends DataTable
                         <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                             '.$csrf.'
                             '.$method.'
-                            <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                                <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                            <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete Unit">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </form>';
                     }
@@ -69,7 +80,7 @@ class UnitsDataTable extends DataTable
                     : '';
             })
 
-             ->rawColumns(['edit_button'])
+             ->rawColumns(['edit_button', 'scope', 'products_count'])
             ->setRowId('id');
     }
 
@@ -78,7 +89,7 @@ class UnitsDataTable extends DataTable
      */
     public function query(Unit $model): QueryBuilder
     {
-        return $model->newQuery()->orderBy('name', 'asc');
+        return $model->newQuery()->withCount('products')->orderBy('name', 'asc');
     }
 
     /**
@@ -91,11 +102,18 @@ class UnitsDataTable extends DataTable
                     ->columns($this->getColumns())
                     ->minifiedAjax(request()->getRequestUri())
                     //->dom('Bfrtip')
-                    ->orderBy(1)
+                    ->orderBy(0)
                     ->selectStyleSingle()
                     ->parameters([
                         'dom'          => "<'row'l>Bfrtip",  //row counter button
-                        'buttons'      => ['colvis', 'excel', 'csv', 'reset', 'reload'],
+                        'buttons'      => ['excel', 'csv', 'reset', 'reload'],
+                        'pageLength'   => 10,
+                        'responsive'   => true,
+                        'language'     => [
+                            'search'     => 'Search Units:',
+                            'lengthMenu' => 'Show _MENU_ entries',
+                            'info'       => 'Showing _START_ to _END_ of _TOTAL_ units',
+                        ],
                     ]);
     }
 
@@ -105,7 +123,9 @@ class UnitsDataTable extends DataTable
     public function getColumns(): array
     {
         $columns = [
-            Column::make('name'),
+            Column::make('name')->title('Unit Name'),
+            Column::make('products_count')->title('Linked Products')->searchable(false),
+            Column::make('scope')->title('Catalog Scope')->searchable(false)->orderable(false),
             // Column::make('created_at')->title('Created At'),
             // Column::make('updated_at')->title('Updated at'),
         ];

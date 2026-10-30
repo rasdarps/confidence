@@ -18,7 +18,11 @@ class CashReconciliationDataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('outlet_name', function ($row) {
-                return $row->outlet ? $row->outlet->name : 'Central';
+                if (! $row->outlet) {
+                    return '<span class="badge bg-secondary">Central</span>';
+                }
+                $badgeClass = $row->outlet->is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($row->outlet->name) . '</span>';
             })
             ->addColumn('cashier_name', function ($row) {
                 return $row->user->name ?? '';
@@ -128,7 +132,7 @@ class CashReconciliationDataTable extends DataTable
 
                 return '<span class="badge bg-warning text-dark">Unposted</span>';
             })
-            ->rawColumns(['variance', 'variance_type', 'status', 'accounting_posting_status', 'action_button'])
+            ->rawColumns(['outlet_name', 'variance', 'variance_type', 'status', 'accounting_posting_status', 'action_button'])
             ->setRowId('id');
     }
 
@@ -141,6 +145,14 @@ class CashReconciliationDataTable extends DataTable
             
         /** @var \App\Models\User|null $currentUser */
         $currentUser = auth()->user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+
+        if ($assignedOutletId) {
+            $query->where('outlet_id', $assignedOutletId);
+        } elseif ($this->request()->filled('outlet_id')) {
+            $query->where('outlet_id', (int) $this->request()->get('outlet_id'));
+        }
+
         if ($currentUser) {
             $viewerIsSuperAdmin = strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
             $viewerCanSeeAllCashiers = $viewerIsSuperAdmin

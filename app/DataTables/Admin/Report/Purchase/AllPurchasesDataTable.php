@@ -26,9 +26,12 @@ class AllPurchasesDataTable extends DataTable
                 $printUrl = route('print.purchase', Crypt::encrypt($row->id));
                 $editUrl = route('purchases.edit', Crypt::encrypt($row->id));
 
+                $user = auth()->user();
+                $isCentral = $user ? $user->isCentral() : true;
+
                 $canPrint = Gate::allows('purchase-print');
-                $canEdit = Gate::allows('purchase-edit');
-                $canCancel = Gate::allows('purchase-cancel');
+                $canEdit = Gate::allows('purchase-edit') && $isCentral;
+                $canCancel = Gate::allows('purchase-cancel') && $isCentral;
                 $editEnabled = (bool) config('pos.purchase_edit_enabled', false);
                 $editWindowHours = max(24, min(720, (int) config('pos.purchase_edit_window_hours', 24)));
                 $isWithinEditWindow = Carbon::parse($row->created_at)->addHours($editWindowHours)->isFuture();
@@ -143,7 +146,10 @@ class AllPurchasesDataTable extends DataTable
                     : '';
             })
 
-            ->rawColumns(['edit_button', 'cancelled_status', 'payment_status_label'])
+            ->addColumn('outlet_name', function() {
+                return '<span class="badge bg-primary">Central Warehouse</span>';
+            })
+            ->rawColumns(['outlet_name', 'edit_button', 'cancelled_status', 'payment_status_label'])
             ->setRowId('id');
     }
 
@@ -258,6 +264,7 @@ class AllPurchasesDataTable extends DataTable
             Column::make('date'),
             Column::make('purchase_no'),
             Column::make('supplier_name')->title('Supplier Name'),
+            Column::make('outlet_name')->title('Warehouse / Station')->searchable(false),
             Column::make('payment_status_label')->title('Payment Status')->searchable(false),
             Column::make('amount')->title('Amount (Gh¢)'),
         ];

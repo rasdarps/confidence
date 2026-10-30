@@ -29,13 +29,21 @@ class StockAdjustmentReportDataTable extends DataTable
             ->addColumn('reference_no', function ($row) {
                 return $row->adjustment->reference_no ?? '';
             })
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = $row->adjustment ? $row->adjustment->outlet : null;
+                if (! $outlet) {
+                    return '<span class="badge bg-secondary">N/A</span>';
+                }
+                $badgeClass = $outlet->is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($outlet->name) . '</span>';
+            })
             ->addColumn('adjustment_type', function ($row) {
                 if ((float) $row->after_qty > (float) $row->before_qty) {
-                    return 'Increase';
+                    return '<span class="badge bg-success">Increase</span>';
                 }
 
                 if ((float) $row->after_qty < (float) $row->before_qty) {
-                    return 'Decrease';
+                    return '<span class="badge bg-danger">Decrease</span>';
                 }
 
                 return '';
@@ -44,14 +52,14 @@ class StockAdjustmentReportDataTable extends DataTable
                 return $row->product->name ?? '';
             })
             ->addColumn('created_by_name', function ($row) {
-                if (!Gate::allows('user-audit-view')) {
+                if (! Gate::allows('user-audit-view')) {
                     return '';
                 }
                 $viewer = auth()->user();
                 $viewerIsSuperAdmin = $viewer && strtolower((string) ($viewer->user_type ?? '')) === 'super admin';
                 $createdByUser = $row->adjustment ? $row->adjustment->createdBy : null;
 
-                if (!$viewerIsSuperAdmin && $createdByUser && strtolower((string) ($createdByUser->user_type ?? '')) === 'super admin') {
+                if (! $viewerIsSuperAdmin && $createdByUser && strtolower((string) ($createdByUser->user_type ?? '')) === 'super admin') {
                     return '';
                 }
 
@@ -68,6 +76,7 @@ class StockAdjustmentReportDataTable extends DataTable
             ->editColumn('amount', function ($row) {
                 return number_format((float) $row->amount, 2);
             })
+            ->rawColumns(['outlet_name', 'adjustment_type'])
             ->setRowId('id');
     }
 
@@ -76,10 +85,21 @@ class StockAdjustmentReportDataTable extends DataTable
      */
     public function query(StockAdjustmentItem $model): QueryBuilder
     {
+        $user = auth()->user();
+        $outletId = ($user && $user->outlet_id)
+            ? (int) $user->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
         $query = $model->newQuery()
-            ->with(['adjustment.createdBy', 'product'])
+            ->with(['adjustment.createdBy', 'adjustment.outlet', 'product'])
             ->whereHas('adjustment')
             ->orderBy('id', 'desc');
+
+        if ($outletId) {
+            $query->whereHas('adjustment', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            });
+        }
 
         if ($adjustmentType = $this->request()->get('adjustment_type')) {
             if ($adjustmentType === 'increase') {
@@ -145,10 +165,11 @@ class StockAdjustmentReportDataTable extends DataTable
     public function getColumns(): array
     {
         $columns = [
-            Column::make('adjustment_date')->title('Date'),
-            Column::make('reference_no')->title('Reference No'),
-            Column::make('adjustment_type')->title('Type'),
-            Column::make('product_name')->title('Product'),
+            Column::make('adjustment_date')->title('Date')->searchable(false)->orderable(false),
+            Column::make('reference_no')->title('Reference No')->searchable(false)->orderable(false),
+            Column::make('outlet_name')->title('Outlet / Location')->searchable(false)->orderable(false),
+            Column::make('adjustment_type')->title('Type')->searchable(false)->orderable(false),
+            Column::make('product_name')->title('Product')->searchable(false)->orderable(false),
             Column::make('qty')->title('Qty'),
             Column::make('unit_cost')->title('Unit Cost'),
             Column::make('amount')->title('Amount (Gh¢)'),
@@ -156,7 +177,7 @@ class StockAdjustmentReportDataTable extends DataTable
         ];
 
         if (Gate::allows('user-audit-view')) {
-            $columns[] = Column::make('created_by_name')->title('Created By');
+            $columns[] = Column::make('created_by_name')->title('Created By')->searchable(false)->orderable(false);
         }
 
         return $columns;

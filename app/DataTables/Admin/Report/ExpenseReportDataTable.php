@@ -29,6 +29,15 @@ class ExpenseReportDataTable extends DataTable
             ->addColumn('reference_no', function ($row) {
                 return $row->voucher->reference_no ?? '';
             })
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = $row->voucher?->outlet;
+                $name = $outlet->name ?? 'Central Warehouse';
+                $isCentral = (bool) ($outlet->is_central ?? false);
+                if ($isCentral) {
+                    return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($name) . ' <small>(Central)</small></span>';
+                }
+                return '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="ri-store-2-line me-1"></i>' . e($name) . '</span>';
+            })
             ->addColumn('category_name', function ($row) {
                 return $row->category->name ?? '';
             })
@@ -67,6 +76,7 @@ class ExpenseReportDataTable extends DataTable
             ->editColumn('amount', function ($row) {
                 return number_format((float) $row->amount, 2);
             })
+            ->rawColumns(['outlet_name'])
             ->setRowId('id');
     }
 
@@ -76,9 +86,19 @@ class ExpenseReportDataTable extends DataTable
     public function query(ExpenseVoucherItem $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with(['voucher.createdBy', 'voucher.updatedBy', 'category'])
+            ->with(['voucher.outlet', 'voucher.createdBy', 'voucher.updatedBy', 'category'])
             ->whereHas('voucher')
             ->orderBy('id', 'desc');
+
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->whereHas('voucher', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            });
+        }
 
         if ($category = $this->request()->get('category')) {
             $query->where('expense_category_id', $category);
@@ -181,6 +201,7 @@ class ExpenseReportDataTable extends DataTable
         $columns = [
             Column::make('expense_date')->title('Date'),
             Column::make('reference_no')->title('Reference No'),
+            Column::computed('outlet_name')->title('Outlet / Branch')->searchable(false)->orderable(false),
             Column::make('category_name')->title('Category'),
             Column::make('amount')->title('Amount (Gh¢)'),
             Column::make('description')->title('Description'),

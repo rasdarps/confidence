@@ -69,3 +69,4 @@ class StockTransfer extends Model
         return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
     }
 }
+

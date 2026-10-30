@@ -8,11 +8,11 @@ use App\DataTables\Admin\Report\Stock\StocksDataTable;
 use App\DataTables\Admin\Report\Stock\StockValueReportDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Unit;
-use App\Models\Outlet;
 use App\Models\User;
- 
+
 class StockController extends Controller
 {
     public function __construct()
@@ -23,49 +23,39 @@ class StockController extends Controller
         $this->middleware('permission:stock-value-report', ['only' => ['StockValue']]);
     }
 
-    // public function StockReport(){
+    public function StockReport(StocksDataTable $dataTable)
+    {
+        $units = Unit::orderBy('name')->get();
+        $categories = Category::orderBy('name')->get();
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
 
-    //     $allData = Product::orderBy('name','asc')->orderBy('category_id','asc')->get();
-    //     return view('backend.stock.stock_report',compact('allData'));
-
-    // } // End Method
-
-    public function StockReport(StocksDataTable $dataTable){
-
-       $units = Unit::orderBy('name')->get();
-       $categories = Category::orderBy('name')->get();
-       $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
-       return $dataTable->render('backend.stock.stock_report', compact('units', 'categories', 'outlets'));
-
+        return $dataTable->render('backend.stock.stock_report', compact('units', 'categories', 'outlets'));
     }
 
     public function StockLedgerReport(StockReportDataTable $dataTable)
     {
         $products = Product::orderBy('name')->get(['id', 'name']);
         $categories = Category::orderBy('name')->get(['id', 'name']);
-        $users = User::orderBy('name')->get(['id', 'name']);
+        $users = User::orderBy('name')->get(['id', 'name', 'user_type']);
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
 
-        return $dataTable->render('backend.stock.stock_ledger_report', compact('products', 'categories', 'users'));
+        return $dataTable->render('backend.stock.stock_ledger_report', compact('products', 'categories', 'users', 'outlets'));
     }
 
     public function ProductWiseStockTrail(ProductWiseStockReportDataTable $dataTable)
     {
         $products = Product::orderBy('name')->get(['id', 'name']);
-        $users = User::orderBy('name')->get(['id', 'name']);
+        $users = User::orderBy('name')->get(['id', 'name', 'user_type']);
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
 
-        return $dataTable->render('backend.stock.product_wise_stock_trail', compact('products', 'users'));
+        return $dataTable->render('backend.stock.product_wise_stock_trail', compact('products', 'users', 'outlets'));
     }
 
-
-    public function StockValue(StockValueReportDataTable $dataTable){
+    public function StockValue(StockValueReportDataTable $dataTable)
+    {
         $products = Product::orderBy('name')->get();
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
 
-        return $dataTable->render('backend.stock.stock_value', compact('products'));
-
-    } // End Method
-
-
-
-
+        return $dataTable->render('backend.stock.stock_value', compact('products', 'outlets'));
+    }
 }
- 

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class AdminController extends Controller
 {
@@ -78,9 +79,18 @@ class AdminController extends Controller
 
         $validateData = $request->validate([
             'oldpassword' => 'required',
-            'newpassword' => 'required',
+            'newpassword' => [
+                'required',
+                'different:oldpassword',
+                Password::min(6)->mixedCase()->numbers()->symbols(),
+            ],
             'confirm_password' => 'required|same:newpassword',
-
+        ], [
+            'oldpassword.required' => 'Current password is required',
+            'newpassword.required' => 'New password is required',
+            'newpassword.different' => 'New password must be different from current password',
+            'confirm_password.required' => 'Password confirmation is required',
+            'confirm_password.same' => 'New Password and Confirm Password must match',
         ]);
 
         $hashedPassword = Auth::user()->password;

@@ -35,24 +35,35 @@
                                 <div class="row">
                                     <div class="col-md-3">
                                         <div class="form-group">
+                                            <label><strong>Branch / Outlet</strong></label>
+                                            <div>
+                                                <span class="badge {{ optional($adjustment->outlet)->is_central ? 'bg-primary' : 'bg-info' }} p-2 fs-6">
+                                                    <i class="fas fa-store"></i> {{ optional($adjustment->outlet)->name ?: 'Central Warehouse' }}
+                                                </span>
+                                            </div>
+                                            <input type="hidden" id="outlet_id" name="outlet_id" value="{{ $adjustment->outlet_id }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
                                             <label for="adjustment_date"><strong>Date <span class="text-danger">*</span></strong></label>
                                             <input type="date" id="adjustment_date" name="adjustment_date" class="form-control" value="{{ old('adjustment_date', optional($adjustment->adjustment_date)->format('Y-m-d')) }}">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="reference_no"><strong>Reference No</strong></label>
                                             <input type="text" id="reference_no" name="reference_no" class="form-control" value="{{ old('reference_no', $adjustment->reference_no) }}" placeholder="optional">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="adjustment_type"><strong>Type <span class="text-danger">*</span></strong></label>
                                             <input type="text" id="adjustment_type_label" class="form-control" value="Auto (from physical count)" readonly>
                                             <input type="hidden" id="adjustment_type" name="adjustment_type" value="{{ old('adjustment_type', $adjustment->adjustment_type) }}">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="reason"><strong>Reason</strong></label>
                                             <input type="text" id="reason" name="reason" class="form-control" value="{{ old('reason', $adjustment->reason) }}" placeholder="reason">
@@ -89,13 +100,21 @@
                                                     <select name="product_id[]" class="form-control product-select" required>
                                                         <option value="">Select Product</option>
                                                         @foreach($products as $product)
-                                                            <option value="{{ $product->id }}" data-qty="{{ $product->quantity }}" data-cost="{{ $product->cost_price ?? 0 }}" {{ (int) $item->product_id === (int) $product->id ? 'selected' : '' }}>
+                                                            @php
+                                                                $outletStocksMap = $product->outletStocks->pluck('quantity', 'outlet_id');
+                                                                $lineOutletQty = $outletStocksMap[$adjustment->outlet_id] ?? 0;
+                                                            @endphp
+                                                            <option value="{{ $product->id }}"
+                                                                data-qty="{{ $lineOutletQty }}"
+                                                                data-cost="{{ $product->cost_price ?? 0 }}"
+                                                                data-stocks='@json($outletStocksMap)'
+                                                                {{ (int) $item->product_id === (int) $product->id ? 'selected' : '' }}>
                                                                 {{ $product->name }} ({{ $product->barcode ?? 'N/A' }})
                                                             </option>
                                                         @endforeach
                                                     </select>
                                                 </td>
-                                                <td><input type="text" class="form-control current-qty" value="{{ optional($item->product)->quantity }}" readonly></td>
+                                                <td><input type="text" class="form-control current-qty" value="{{ $item->product ? $item->product->quantityForOutlet($adjustment->outlet_id) : 0 }}" readonly></td>
                                                 <td class="physical-count-col"><input type="number" step="0.01" min="0" name="physical_count[]" class="form-control physical-count-input" required></td>
                                                 <td><input type="number" step="0.01" min="0.01" name="qty[]" class="form-control qty-input" value="{{ $item->qty }}" required readonly></td>
                                                 <td><input type="number" step="0.01" min="0" name="unit_cost[]" class="form-control unit-cost-input" value="{{ $item->unit_cost }}" required></td>
@@ -112,7 +131,14 @@
                                                     <select name="product_id[]" class="form-control product-select" required>
                                                         <option value="">Select Product</option>
                                                         @foreach($products as $product)
-                                                            <option value="{{ $product->id }}" data-qty="{{ $product->quantity }}" data-cost="{{ $product->cost_price ?? 0 }}">
+                                                            @php
+                                                                $outletStocksMap = $product->outletStocks->pluck('quantity', 'outlet_id');
+                                                                $lineOutletQty = $outletStocksMap[$adjustment->outlet_id] ?? 0;
+                                                            @endphp
+                                                            <option value="{{ $product->id }}"
+                                                                data-qty="{{ $lineOutletQty }}"
+                                                                data-cost="{{ $product->cost_price ?? 0 }}"
+                                                                data-stocks='@json($outletStocksMap)'>
                                                                 {{ $product->name }} ({{ $product->barcode ?? 'N/A' }})
                                                             </option>
                                                         @endforeach
@@ -144,7 +170,9 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <button type="button" id="add-line" class="btn btn-info btn-sm"><i class="fas fa-plus-circle"></i> Add Line</button>
+                                    <button type="button" id="add-line" class="btn btn-modern-primary">
+                                        <i class="fas fa-plus-circle me-1 mr-1"></i> Add Line
+                                    </button>
                                 </div>
 
                                 <div class="row">
@@ -269,9 +297,22 @@ $(function () {
         }
     }
 
+    function getCurrentOutletId() {
+        return $('#outlet_id').val();
+    }
+
+    function getProductQtyForOutlet(option, outletId) {
+        const stocks = $(option).data('stocks') || {};
+        if (stocks[outletId] !== undefined) {
+            return parseFloat(stocks[outletId]) || 0;
+        }
+        return parseFloat($(option).data('qty')) || 0;
+    }
+
     $(document).on('change', '.product-select', function () {
         const $selected = $(this).find('option:selected');
-        const qty = $selected.data('qty') ?? '';
+        const outletId = getCurrentOutletId();
+        const qty = $selected.val() ? getProductQtyForOutlet($selected, outletId) : '';
         const cost = $selected.data('cost') ?? 0;
         const $row = $(this).closest('tr');
         $row.find('.current-qty').val(qty);

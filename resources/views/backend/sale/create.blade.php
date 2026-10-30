@@ -11,10 +11,8 @@
                     <div class="card" style="margin-top: 5px;">
                         <div class="card-header with-border">
                             <span class="card-title mobile-page-title" style="font-size:20px;">Create | Sales Sale</span>
-                            <a href="{{route('sales.index')}}" class="mobile-header-action" style="float:right">
-                                <button type="button" class="btn btn-dark modal_btn mobile-header-btn">
-                                    View Sales sales
-                                </button>
+                            <a href="{{route('sales.index')}}" class="btn btn-modern-header mobile-header-action float-end" style="float:right">
+                                <i class="fas fa-list me-1 mr-1"></i> View Sales
                             </a>
                             <hr>
                             <div class="card-body">
@@ -28,6 +26,36 @@
                                 <form method="post" action="{{ route('sales.store') }}" id="invoiceForm" novalidate>
                                     @csrf
                                     <div class="sale-section-panel">
+                                        <div class="row mb-3 align-items-center">
+                                            <div class="col-md-6 col-12 mb-2 mb-md-0">
+                                                @if(!empty($canChangeOutlet) && isset($outlets) && $outlets->count() > 1)
+                                                    <div class="d-flex align-items-center">
+                                                        <label for="outlet_id" class="me-2 mb-0 text-nowrap fw-bold" style="min-width: 110px;">
+                                                            <i class="fas fa-store text-primary me-1"></i> Outlet:
+                                                        </label>
+                                                        <select name="outlet_id" id="outlet_id" class="form-control select2" required style="width: 100%;">
+                                                            @foreach($outlets as $outlet)
+                                                                <option value="{{ $outlet->id }}" {{ (int) $outlet->id === (int) $currentOutletId ? 'selected' : '' }}>
+                                                                    {{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '(Retail Branch)' }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                @else
+                                                    <input type="hidden" name="outlet_id" id="outlet_id" value="{{ $currentOutletId }}">
+                                                    <div class="d-inline-flex align-items-center py-1 px-3 bg-light rounded border">
+                                                        <i class="fas fa-store text-primary me-2"></i>
+                                                        <span class="text-muted me-1">Outlet:</span>
+                                                        <strong class="text-dark me-2">{{ $currentOutlet->name ?? 'Retail Branch' }}</strong>
+                                                        @if(isset($currentOutlet) && $currentOutlet->is_central)
+                                                            <span class="badge bg-secondary">Central Warehouse</span>
+                                                        @else
+                                                            <span class="badge bg-success">Retail Branch</span>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
                                         <div class="row mb-2 align-items-center">
                                             {{-- barcode field for product lookup --}}
                                             <div class="col-md-3 d-flex align-items-center mb-2 mb-md-0">
@@ -75,15 +103,20 @@
                                                     <select name="product_id" id="product_id" class="form-control select2" aria-label="Select product">
                                                         <option disabled selected value="">Select Product</option>
                                                         @foreach($products as $product)
+                                                            @php
+                                                                $outletQty = (float) (isset($currentOutletId) && $currentOutletId ? $product->quantityForOutlet($currentOutletId) : ($product->quantity ?? 0));
+                                                            @endphp
                                                             <option value="{{ $product->id }}"
+                                                                data-base-name="{{ $product->name }}"
                                                                 data-category-id="{{ $product->category_id }}"
                                                                 data-category-name="{{ $product->category->name ?? '' }}"
                                                                 data-unit-id="{{ $product->unit_id }}"
                                                                 data-unit-name="{{ $product->unit->name ?? '' }}"
                                                                 data-price="{{ (float) ($product->selling_price ?? 0) }}"
-                                                                data-qty="{{ (float) (isset($currentOutletId) && $currentOutletId ? $product->quantityForOutlet($currentOutletId) : ($product->quantity ?? 0)) }}"
+                                                                data-stocks="{{ json_encode($product->outletStocks->pluck('quantity', 'outlet_id')) }}"
+                                                                data-qty="{{ $outletQty }}"
                                                                 data-barcode="{{ $product->barcode ?? '' }}">
-                                                                {{ $product->name }}
+                                                                {{ $product->name }} (Available: {{ $outletQty }})
                                                             </option>
                                                         @endforeach
                                                     </select>
@@ -111,7 +144,9 @@
 
                                         <div class="row mb-2">
                                             <div class="col-12 text-center">
-                                                <button type="button" class="btn btn-dark waves-effect waves-light fas fa-plus-circle addeventmore mobile-action-btn"> Add</button>
+                                                <button type="button" class="btn btn-modern-primary addeventmore mobile-action-btn">
+                                                    <i class="fas fa-plus-circle me-1 mr-1"></i> Add Item
+                                                </button>
                                             </div>
                                         </div>
                                     {{-- <hr> --}}
@@ -239,10 +274,13 @@
                                             <textarea name="description" class="form-control" id="description" placeholder="Write Description Here"></textarea>
                                         </div>
                                     </div>
-                                    <div class="form-group mt-4">
-                                        <center>
-                                            <button type="submit" class="btn btn-success storeButton mobile-submit-btn" id="storeButton">Submit Sale</button>
-                                        </center>
+                                    <div class="form-group mt-4 pt-3 border-top text-center">
+                                        <a href="{{ route('sales.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary storeButton mobile-submit-btn" id="storeButton">
+                                            <i class="fas fa-check-circle me-1 mr-1"></i> Submit Sale
+                                        </button>
                                     </div>
                                 </form>
                             </div>
@@ -878,6 +916,43 @@
     {{-- handles add more item in purchase --}}
     <script type="text/javascript">
         $(document).ready(function(){
+            $(document).on('change', '#outlet_id', function() {
+                var selectedOutlet = $(this).val();
+                if ($('#addRow tr').length > 0) {
+                    if (confirm('Changing the outlet will clear current invoice items because available stock varies by outlet. Continue?')) {
+                        $('#addRow').empty();
+                        if (typeof totalAmountPrice === 'function') totalAmountPrice();
+                    } else {
+                        var prev = $(this).data('previous-outlet') || '{{ $currentOutletId }}';
+                        $(this).val(prev);
+                        if ($.fn.select2) {
+                            $(this).trigger('change.select2');
+                        }
+                        return;
+                    }
+                }
+                $(this).data('previous-outlet', selectedOutlet);
+
+                $('#product_id option').each(function() {
+                    var $opt = $(this);
+                    var val = $opt.val();
+                    if (!val) return;
+                    var stocks = $opt.data('stocks') || {};
+                    var qty = stocks[selectedOutlet] !== undefined ? parseFloat(stocks[selectedOutlet]) : 0;
+                    $opt.attr('data-qty', qty);
+                    $opt.data('qty', qty);
+                    var baseName = $opt.data('base-name') || $opt.text().replace(/\s*\(Available:.*\)$/, '').trim();
+                    $opt.data('base-name', baseName);
+                    $opt.text(baseName + ' (Available: ' + qty + ')');
+                });
+                if ($.fn.select2) {
+                    $('#product_id').trigger('change.select2');
+                }
+                var $selectedProd = $('#product_id').find('option:selected');
+                if ($selectedProd.val()) {
+                    $('#current_stock_qty').val($selectedProd.data('qty') || 0);
+                }
+            });
 
             function round2(num) {
                 return (Math.round((num + Number.EPSILON) * 100) / 100).toFixed(2);
@@ -1102,7 +1177,7 @@
                 $.ajax({
                     url: "{{ route('products.findByBarcode') }}", // lookup route
                     type: "GET",
-                    data: { barcode: barcode },
+                    data: { barcode: barcode, outlet_id: $('#outlet_id').val() },
                     success: function(product){
                         if(product && product.id){
                             var availableQty = parseFloat(product.quantity);

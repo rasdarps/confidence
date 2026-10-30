@@ -12,8 +12,8 @@
                 <div class="card-header with-border">
                     <span class="card-title" style="font-size:20px;">Create | Expense Category</span>
 
-                    <a href="{{ route('expense-categories.index') }}" style="float:right">
-                        <button type="button" class="btn btn-primary modal_btn">View Expense Categories</button>
+                    <a href="{{ route('expense-categories.index') }}" class="btn btn-modern-header" style="float:right">
+                        <i class="fas fa-list me-1 mr-1"></i> View Expense Categories
                     </a>
 
                     <hr>
@@ -30,15 +30,32 @@
                             </div>
 
                             <div class="col-md-6 mx-auto">
-                                <div class="form-group">
+                                <div class="form-group mb-3">
                                     <label for="name"><strong>Category Name <span class="text-danger">*</span></strong></label>
                                     <input type="text" id="name" name="name" class="form-control" value="{{ old('name') }}" placeholder="enter category name">
                                 </div>
+                                <div class="form-group mb-3">
+                                    <label for="accounting_account_id"><strong>GL Expense Account (Chart of Accounts)</strong></label>
+                                    <select name="accounting_account_id" id="accounting_account_id" class="form-control select2">
+                                        <option value="">Default (5200 Operating Expenses)</option>
+                                        @foreach($accounts as $acc)
+                                            <option value="{{ $acc->id }}" {{ old('accounting_account_id') == $acc->id ? 'selected' : '' }}>
+                                                [{{ $acc->code }}] {{ $acc->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <small class="form-text text-muted">Expense lines using this category will automatically debit this account in the General Ledger and Income Statement.</small>
+                                </div>
                             </div>
 
-                            <div class="row">
+                            <div class="row mt-4 pt-3 border-top">
                                 <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-success mt-3">Submit</button>
+                                    <a href="{{ route('expense-categories.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                        <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-modern-primary">
+                                        <i class="fas fa-check-circle me-1 mr-1"></i> Create Expense Category
+                                    </button>
                                 </div>
                             </div>
                         </form>

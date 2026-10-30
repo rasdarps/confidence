@@ -65,6 +65,16 @@ class Product extends Model
         return $this->hasMany(StockTransferItem::class);
     }
 
+    public function stockAdjustmentItems()
+    {
+        return $this->hasMany(StockAdjustmentItem::class);
+    }
+
+    public function stockLedgers()
+    {
+        return $this->hasMany(StockLedger::class);
+    }
+
     public function stockForOutlet(?int $outletId = null): ?OutletStock
     {
         if (! $outletId) {
@@ -77,6 +87,10 @@ class Product extends Model
     {
         if (! $outletId) {
             return $this->quantity;
+        }
+        if ($this->relationLoaded('outletStocks')) {
+            $stock = $this->outletStocks->firstWhere('outlet_id', $outletId);
+            return (float) ($stock ? $stock->quantity : 0);
         }
         return (float) ($this->outletStocks()->where('outlet_id', $outletId)->value('quantity') ?? 0);
     }

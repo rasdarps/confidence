@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Admin\Report\Stock;
 
+use App\Models\Outlet;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
 use Yajra\DataTables\EloquentDataTable;
@@ -18,19 +19,41 @@ class StockValueReportDataTable extends DataTable
      */
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
+        $user = auth()->user();
+        $outletId = ($user && $user->outlet_id)
+            ? (int) $user->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
+        $selectedOutlet = $outletId ? Outlet::find($outletId) : null;
+
         return (new EloquentDataTable($query))
-            ->addColumn('cost_value', function ($row) {
-                return number_format((float) $row->quantity * (float) $row->cost_price, 2);
+            ->addColumn('outlet_location', function () use ($outletId, $selectedOutlet) {
+                if ($outletId && $selectedOutlet) {
+                    $badgeClass = $selectedOutlet->is_central ? 'bg-primary' : 'bg-info';
+                    return '<span class="badge ' . $badgeClass . '">' . e($selectedOutlet->name) . '</span>';
+                }
+
+                return '<span class="badge bg-secondary">All Locations (Combined)</span>';
             })
-            ->addColumn('sell_value', function ($row) {
-                return number_format((float) $row->quantity * (float) $row->selling_price, 2);
+            ->addColumn('quantity', function ($row) use ($outletId) {
+                $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
+                return number_format($qty, 2);
             })
-            ->addColumn('profit', function ($row) {
-                $cost_value = (float) $row->quantity * (float) $row->cost_price;
-                $sell_value = (float) $row->quantity * (float) $row->selling_price;
+            ->addColumn('cost_value', function ($row) use ($outletId) {
+                $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
+                return number_format($qty * (float) $row->cost_price, 2);
+            })
+            ->addColumn('sell_value', function ($row) use ($outletId) {
+                $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
+                return number_format($qty * (float) $row->selling_price, 2);
+            })
+            ->addColumn('profit', function ($row) use ($outletId) {
+                $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
+                $cost_value = $qty * (float) $row->cost_price;
+                $sell_value = $qty * (float) $row->selling_price;
                 return number_format($sell_value - $cost_value, 2);
             })
-            ->rawColumns(['cost_value', 'sell_value', 'profit'])
+            ->rawColumns(['outlet_location', 'quantity', 'cost_value', 'sell_value', 'profit'])
             ->setRowId('id');
     }
 
@@ -39,9 +62,18 @@ class StockValueReportDataTable extends DataTable
      */
     public function query(Product $model): QueryBuilder
     {
-        return $model->newQuery()
-            ->select('id', 'name', 'quantity', 'cost_price', 'selling_price')
+        $query = $model->newQuery()
+            ->with('outletStocks')
+            ->select('id', 'name', 'cost_price', 'selling_price')
             ->orderBy('name', 'asc');
+
+        if ($productId = $this->request()->get('product_id')) {
+            $query->where('products.id', $productId);
+        } elseif ($productName = $this->request()->get('product_name')) {
+            $query->where('products.name', $productName);
+        }
+
+        return $query;
     }
 
     /**
@@ -53,8 +85,7 @@ class StockValueReportDataTable extends DataTable
                     ->setTableId('stockvaluereport-table')
                     ->columns($this->getColumns())
                     ->minifiedAjax(request()->getRequestUri())
-                    //->dom('Bfrtip')
-                    ->orderBy(1)
+                    ->orderBy(0)
                     ->selectStyleSingle()
                     ->footerCallback('function (row, data, start, end, display) {
                         var api = this.api();
@@ -71,19 +102,19 @@ class StockValueReportDataTable extends DataTable
                             return 0;
                         };
 
-                        var totalQty = api.column(1, { page: "current" }).data().reduce(function (a, b) {
+                        var totalQty = api.column(2, { page: "current" }).data().reduce(function (a, b) {
                             return intVal(a) + intVal(b);
                         }, 0);
 
-                        var totalCostValue = api.column(3, { page: "current" }).data().reduce(function (a, b) {
+                        var totalCostValue = api.column(4, { page: "current" }).data().reduce(function (a, b) {
                             return intVal(a) + intVal(b);
                         }, 0);
 
-                        var totalSellValue = api.column(5, { page: "current" }).data().reduce(function (a, b) {
+                        var totalSellValue = api.column(6, { page: "current" }).data().reduce(function (a, b) {
                             return intVal(a) + intVal(b);
                         }, 0);
 
-                        var totalProfit = api.column(6, { page: "current" }).data().reduce(function (a, b) {
+                        var totalProfit = api.column(7, { page: "current" }).data().reduce(function (a, b) {
                             return intVal(a) + intVal(b);
                         }, 0);
 
@@ -94,14 +125,14 @@ class StockValueReportDataTable extends DataTable
                             });
                         };
 
-                        $(api.column(0).footer()).html("Totals");
-                        $(api.column(1).footer()).html(formatValue(totalQty));
-                        $(api.column(3).footer()).html(formatValue(totalCostValue));
-                        $(api.column(5).footer()).html(formatValue(totalSellValue));
-                        $(api.column(6).footer()).html(formatValue(totalProfit));
+                        $(api.column(1).footer()).html("Totals");
+                        $(api.column(2).footer()).html(formatValue(totalQty));
+                        $(api.column(4).footer()).html(formatValue(totalCostValue));
+                        $(api.column(6).footer()).html(formatValue(totalSellValue));
+                        $(api.column(7).footer()).html(formatValue(totalProfit));
                     }')
                     ->parameters([
-                        'dom'          => "<'row'l>Bfrtip",  //row counter button
+                        'dom'          => "<'row'l>Bfrtip",
                         'buttons'      => [
                             ['extend' => 'colvis'],
                             ['extend' => 'excel', 'footer' => true],
@@ -119,14 +150,13 @@ class StockValueReportDataTable extends DataTable
     {
         return [
             Column::make('name')->title('Product Name'),
-            Column::make('quantity')->title('Current Stock'),
+            Column::make('outlet_location')->title('Outlet / Location')->searchable(false)->orderable(false),
+            Column::make('quantity')->title('Current Stock')->searchable(false)->orderable(false),
             Column::make('cost_price')->title('Cost Price'),
-            Column::make('cost_value')->title('Cost Value'),
+            Column::make('cost_value')->title('Cost Value')->searchable(false)->orderable(false),
             Column::make('selling_price')->title('Selling Price'),
-            Column::make('sell_value')->title('Selling Value'),
-            Column::make('profit')->title('Profit')
-
-            
+            Column::make('sell_value')->title('Selling Value')->searchable(false)->orderable(false),
+            Column::make('profit')->title('Profit')->searchable(false)->orderable(false),
         ];
     }
 

@@ -42,6 +42,7 @@ return new class extends Migration
 
         Schema::create('accounting_journals', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('outlet_id')->nullable();
             $table->string('journal_no')->unique();
             $table->date('posting_date');
             $table->string('source_type', 100)->nullable();
@@ -57,11 +58,13 @@ return new class extends Migration
             $table->unsignedBigInteger('reversed_journal_id')->nullable();
             $table->timestamps();
 
+            $table->foreign('outlet_id')->references('id')->on('outlets')->nullOnDelete();
             $table->foreign('fiscal_period_id')->references('id')->on('accounting_fiscal_periods')->nullOnDelete();
             $table->foreign('posted_by')->references('id')->on('users')->nullOnDelete();
             $table->foreign('reversed_journal_id')->references('id')->on('accounting_journals')->nullOnDelete();
             $table->index(['source_type', 'source_id']);
             $table->index(['posting_date', 'status']);
+            $table->index(['outlet_id', 'posting_date', 'status'], 'acc_journals_outlet_date_status_idx');
         });
 
         Schema::create('accounting_journal_lines', function (Blueprint $table) {

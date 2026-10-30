@@ -41,11 +41,31 @@
                             </div>
                         @endif
                         <div class="row mb-3">
-                            <div class="col-md-3">
+                            @if(!empty($outlets) && !$assignedOutletId)
+                                <div class="col-md-3">
+                                    <label for="filter_outlet_id">Branch / Outlet</label>
+                                    <select id="filter_outlet_id" class="form-control">
+                                        <option value="">All Outlets</option>
+                                        @foreach($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @elseif($assignedOutletId && !empty($outlets))
+                                <div class="col-md-3">
+                                    <label>Branch / Outlet</label>
+                                    <div>
+                                        <span class="badge bg-primary p-2 fs-6">
+                                            <i class="fas fa-store"></i> {{ optional($outlets->firstWhere('id', $assignedOutletId))->name ?? 'Assigned Station' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            @endif
+                            <div class="col-md-2">
                                 <label for="filter_from_date">From Date</label>
                                 <input type="date" id="filter_from_date" class="form-control">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="filter_to_date">To Date</label>
                                 <input type="date" id="filter_to_date" class="form-control">
                             </div>
@@ -58,7 +78,7 @@
                                     <option value="reversed" {{ $defaultAccountingStatus === 'reversed' ? 'selected' : '' }}>Reversed</option>
                                 </select>
                             </div>
-                            <div class="col-md-3 d-flex align-items-end mt-2 mt-md-0">
+                            <div class="col-md-2 d-flex align-items-end mt-2 mt-md-0">
                                 <button id="reset_filters" class="btn btn-dark w-100">Reset Filters</button>
                             </div>
                         </div>
@@ -80,7 +100,7 @@
         const defaultAccountingStatus = @json($defaultAccountingStatus);
         let table = $('#cash-reconciliation-table').DataTable();
 
-        $('#filter_from_date, #filter_to_date, #filter_accounting_status').on('change', function () {
+        $('#filter_from_date, #filter_to_date, #filter_accounting_status, #filter_outlet_id').on('change', function () {
             table.ajax.reload();
         });
 
@@ -88,6 +108,9 @@
             $('#filter_from_date').val('');
             $('#filter_to_date').val('');
             $('#filter_accounting_status').val(defaultAccountingStatus);
+            if ($('#filter_outlet_id').length) {
+                $('#filter_outlet_id').val('');
+            }
             table.ajax.reload();
         });
 
@@ -95,6 +118,9 @@
             data.from_date = $('#filter_from_date').val();
             data.to_date = $('#filter_to_date').val();
             data.accounting_status = $('#filter_accounting_status').val();
+            if ($('#filter_outlet_id').length) {
+                data.outlet_id = $('#filter_outlet_id').val();
+            }
         });
     });
 </script>

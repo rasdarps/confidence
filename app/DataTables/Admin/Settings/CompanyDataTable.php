@@ -22,7 +22,9 @@ class CompanyDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-            ->addColumn('action', 'company.action')
+            ->addColumn('profile_status', function($row) {
+                return '<span class="badge bg-primary">Corporate Entity (HQ)</span>';
+            })
             ->addColumn('edit_button', function($row) {
                     $editUrl = route('companies.edit', Crypt::encrypt($row->id));
                     $deleteUrl = route('companies.destroy', Crypt::encrypt($row->id));
@@ -35,19 +37,19 @@ class CompanyDataTable extends DataTable
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                             '.$csrf.'
-                            <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                                <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                            <button class="btn-action-edit table-edit-btn" title="Edit Company">
+                                <i class="fas fa-edit"></i>
                             </button>
                         </form>';
                     }
 
-                    if (Gate::allows('company-delete')) {
+                    if (Gate::allows('company-delete') && Company::count() > 1) {
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                             '.$csrf.'
                             '.$method.'
-                            <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                                <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                            <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete Company">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </form>';
                     }
@@ -69,7 +71,7 @@ class CompanyDataTable extends DataTable
                     : '';
             })
 
-             ->rawColumns(['edit_button'])
+            ->rawColumns(['profile_status', 'edit_button'])
             ->setRowId('id');
     }
 
@@ -106,6 +108,7 @@ class CompanyDataTable extends DataTable
     {
         $columns = [
             Column::make('name')->title('Company Name'),
+            Column::make('profile_status')->title('Entity Scope')->searchable(false),
             Column::make('email')->title('Company Email'),
             Column::make('phone')->title('Company Phone'),
             Column::make('tin_number')->title('Company TIN Number'),

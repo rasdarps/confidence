@@ -19,6 +19,14 @@ class SalesCashMovementDataTable extends DataTable
             ->editColumn('payment_date', function ($row) {
                 return $row->payment_date ? Carbon::parse($row->payment_date)->format('d-m-Y') : 'N/A';
             })
+            ->addColumn('outlet_name', function ($row) {
+                $name = $row->outlet_name ?? 'Central Warehouse';
+                $isCentral = (bool) ($row->outlet_is_central ?? false);
+                if ($isCentral) {
+                    return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($name) . ' <small>(Central)</small></span>';
+                }
+                return '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="ri-store-2-line me-1"></i>' . e($name) . '</span>';
+            })
             ->editColumn('paid_status', function ($row) {
                 return match ($row->paid_status) {
                     PaymentStatus::FULL_PAYMENT => 'Full Payment',
@@ -35,6 +43,7 @@ class SalesCashMovementDataTable extends DataTable
             ->editColumn('due_amount', function ($row) {
                 return number_format((float) $row->due_amount, 2);
             })
+            ->rawColumns(['outlet_name'])
             ->setRowId('id');
     }
 
@@ -44,6 +53,7 @@ class SalesCashMovementDataTable extends DataTable
             ->from('payment_details')
             ->leftJoin('payments', 'payments.sale_id', '=', 'payment_details.sale_id')
             ->leftJoin('sales', 'sales.id', '=', 'payments.sale_id')
+            ->leftJoin('outlets', 'outlets.id', '=', 'sales.outlet_id')
             ->leftJoin('customers', 'customers.id', '=', 'payments.customer_id')
             ->select([
                 'payment_details.id',
@@ -55,12 +65,23 @@ class SalesCashMovementDataTable extends DataTable
                 'payments.total_amount',
                 'payments.due_amount',
                 'sales.sale_no',
+                'sales.outlet_id',
+                'outlets.name as outlet_name',
+                'outlets.is_central as outlet_is_central',
                 'customers.name as customer_name',
             ])
             ->whereIn('payments.paid_status', [PaymentStatus::FULL_PAYMENT, PaymentStatus::PARTIAL_PAYMENT])
             ->where('payment_details.current_paid_amount', '>', 0)
             ->orderByDesc('payment_details.date')
             ->orderByDesc('payment_details.id');
+
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
 
         if ($saleId = $this->request()->get('sale_id')) {
             $query->where('payment_details.sale_id', $saleId);
@@ -146,6 +167,7 @@ class SalesCashMovementDataTable extends DataTable
         return [
             Column::make('payment_date')->title('Payment Date'),
             Column::make('sale_no')->title('Sale No'),
+            Column::computed('outlet_name')->title('Outlet / Branch')->searchable(false)->orderable(false),
             Column::make('customer_name')->title('Customer'),
             Column::make('paid_status')->title('Payment Type'),
             Column::make('total_amount')->title('Invoice Amount (Gh¢)')->searchable(false),

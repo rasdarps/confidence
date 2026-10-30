@@ -9,8 +9,8 @@
                 <div class="card">
                     <div class="card-header">
                         <span class="card-title" style="font-size:20px;">Create Outlet / Branch</span>
-                        <a href="{{ route('outlets.index') }}" style="float:right">
-                            <button type="button" class="btn btn-primary">View Outlets</button>
+                        <a href="{{ route('outlets.index') }}" class="btn btn-modern-header" style="float:right">
+                            <i class="fas fa-list me-1 mr-1"></i> View Outlets
                         </a>
                         <hr>
 
@@ -82,9 +82,14 @@
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                <div class="row mt-4 pt-3 border-top">
                                     <div class="col-12 text-center">
-                                        <button type="submit" class="btn btn-success mt-3 px-4">Create Outlet</button>
+                                        <a href="{{ route('outlets.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary">
+                                            <i class="fas fa-check-circle me-1 mr-1"></i> Create Outlet
+                                        </button>
                                     </div>
                                 </div>
                             </form>
@@ -151,3 +156,4 @@
     });
 </script>
 @endsection
+

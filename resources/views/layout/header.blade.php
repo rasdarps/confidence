@@ -425,26 +425,38 @@
 
     @php
     $id = Auth::user()->id;
-    $adminData = App\Models\User::find($id);
+    $adminData = App\Models\User::with('outlet')->find($id);
     @endphp
 
     <div class="dropdown d-inline-block user-dropdown">
-        <button type="button" class="btn header-item waves-effect" id="page-header-user-dropdown"
+        <button type="button" class="btn header-item waves-effect d-flex align-items-center" id="page-header-user-dropdown"
             data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             <img class="rounded-circle header-profile-user" src="{{ asset('images/bg_logo.PNG') }}"
                 alt="Header Avatar">
-            <span class="d-none d-xl-inline-block ms-1">{{ $adminData->username }}</span>
-            <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
+            <span class="d-none d-xl-inline-block ms-2 text-start">
+                <span class="d-block fw-semibold text-white" style="line-height: 1.2;">{{ $adminData->username }}</span>
+                <span class="badge {{ ($adminData->outlet && !$adminData->outlet->is_central) ? 'bg-info' : 'bg-light text-dark' }}" style="font-size: 10px; font-weight: 500; padding: 2px 6px;">
+                    <i class="fas {{ ($adminData->outlet && !$adminData->outlet->is_central) ? 'fa-store' : 'fa-warehouse' }} me-1"></i>{{ $adminData->outlet ? $adminData->outlet->name : 'Central HQ' }}
+                </span>
+            </span>
+            <i class="mdi mdi-chevron-down d-none d-xl-inline-block ms-1"></i>
         </button>
         <div class="dropdown-menu dropdown-menu-end">
             <!-- item-->
             <a class="dropdown-item" href="{{ route('admin.profile') }}"><i class="ri-user-line align-middle me-1"></i> Profile</a>
             <a class="dropdown-item" href="{{ route('change.password') }}"><i class="ri-wallet-2-line align-middle me-1"></i> Change Password</a>
-            <a class="dropdown-item d-block" href="{{ route('settings.index') }}"><span class="badge bg-success float-end mt-1">11</span><i class="ri-settings-2-line align-middle me-1"></i> Settings</a>
+            @if(Auth::user()->isCentral() && Auth::user()->can('settings-manage'))
+            <a class="dropdown-item d-block" href="{{ route('settings.index') }}"><i class="ri-settings-2-line align-middle me-1"></i> Settings</a>
+            @endif
             <a class="dropdown-item" href="#"><i class="ri-lock-unlock-line align-middle me-1"></i> Lock screen</a>
             <div class="dropdown-divider"></div>
 
-            <a class="dropdown-item text-danger" href="{{ route('admin.logout') }}"><i class="ri-shut-down-line align-middle me-1 text-danger"></i> Logout</a>
+            <form id="header-logout-form" action="{{ route('admin.logout') }}" method="POST" style="display: none;">
+                @csrf
+            </form>
+            <a class="dropdown-item text-danger" href="javascript:void(0);" onclick="event.preventDefault(); document.getElementById('header-logout-form').submit();">
+                <i class="ri-shut-down-line align-middle me-1 text-danger"></i> Logout
+            </a>
         </div>
     </div>
 

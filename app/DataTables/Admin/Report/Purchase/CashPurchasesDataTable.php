@@ -26,6 +26,9 @@ class CashPurchasesDataTable extends DataTable
                     ? Carbon::parse($row->purchase->date)->format('d-m-Y')
                     : 'N/A';
             })
+            ->addColumn('outlet_name', function () {
+                return '<span class="badge bg-primary">Central Warehouse</span>';
+            })
             ->addColumn('due_amount_formatted', function ($row) {
                 return number_format((float) $row->due_amount, 2);
             })
@@ -35,7 +38,7 @@ class CashPurchasesDataTable extends DataTable
             ->addColumn('status', function () {
                 return '<span class="badge bg-success">Settled</span>';
             })
-            ->rawColumns(['status'])
+            ->rawColumns(['outlet_name', 'status'])
             ->setRowId('id');
     }
 
@@ -94,6 +97,7 @@ class CashPurchasesDataTable extends DataTable
         return [
             Column::make('purchase_no')->title('Purchase No'),
             Column::make('supplier_name')->title('Supplier Name'),
+            Column::make('outlet_name')->title('Warehouse / Station')->searchable(false),
             Column::make('purchase_date')->title('Date')->searchable(false),
             Column::make('amount_formatted')->title('Amount (Gh¢)')->searchable(false),
             Column::make('due_amount_formatted')->title('Due Amount (Gh¢)')->searchable(false),

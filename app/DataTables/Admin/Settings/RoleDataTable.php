@@ -35,28 +35,30 @@ class RoleDataTable extends DataTable
 
                 if (Gate::allows('role-list')) {
                     $buttons[] = '
-                    <a href="'.$showUrl.'" class="btn btn-sm btn-info text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;" title="View">
-                        <i class="fas fa-eye" style="color:#fff;"></i>
+                    <a href="'.$showUrl.'" class="btn-action-view" title="View Role">
+                        <i class="fas fa-eye"></i>
                     </a>';
                 }
 
-                if (Gate::allows('role-edit')) {
+                $isCentral = auth()->check() && auth()->user()->isCentral();
+
+                if ($isCentral && Gate::allows('role-edit')) {
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                         '.$csrf.'
-                        <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                            <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                        <button type="submit" class="btn-action-edit table-edit-btn" title="Edit Role">
+                            <i class="fas fa-edit"></i>
                         </button>
                     </form>';
                 }
 
-                if (Gate::allows('role-delete')) {
+                if ($isCentral && Gate::allows('role-delete')) {
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                         '.$csrf.'
                         '.$method.'
-                        <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                            <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                        <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete Role">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
                 }

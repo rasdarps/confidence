@@ -70,6 +70,13 @@ class ProductPriceController extends Controller
      */
     public function edit(string $encryptedId)
     {
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('product-prices.index')->with([
+                'message' => 'Only Central Headquarters staff can modify master product prices. Pricing is managed centrally enterprise-wide.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $product = Product::findOrFail($id);
@@ -85,10 +92,16 @@ class ProductPriceController extends Controller
      */
     public function update(Request $request, string $encryptedId)
     {
-        //
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can update master product prices.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'cost_price' => 'required|numeric|min:0',
-            'selling_price' => 'required|numeric|min:0',
+            'selling_price' => 'required|numeric|min:0|gte:cost_price',
         ], [
             'cost_price.required' => 'Please enter a cost price',
             'cost_price.numeric' => 'Cost price must be a number',
@@ -96,6 +109,7 @@ class ProductPriceController extends Controller
             'selling_price.required' => 'Please enter a selling price',
             'selling_price.numeric' => 'Selling price must be a number',
             'selling_price.min' => 'Selling price cannot be negative',
+            'selling_price.gte' => 'Selling price must be greater than or equal to the cost price',
         ]);
 
         try {
@@ -125,7 +139,7 @@ class ProductPriceController extends Controller
 
             return response()->json([
                 'status' => 200,
-                'message' => 'Product price updated successfully.',
+                'message' => "Master price for '{$product->name}' was updated successfully.",
                 'redirect' => route('product-prices.index'),
             ]);
         } catch (\Exception $e) {
@@ -146,6 +160,9 @@ class ProductPriceController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        return response()->json([
+            'status' => 403,
+            'message' => 'Product prices cannot be deleted to preserve financial audit trail.',
+        ], 403);
     }
 }

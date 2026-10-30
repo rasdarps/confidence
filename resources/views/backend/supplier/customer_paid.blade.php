@@ -20,6 +20,11 @@
                     <div class="card-body">
                         <h4 class="card-title">Cash Purchases Data</h4>
 
+                        <div class="alert alert-info py-2 mb-3" role="alert">
+                            <i class="fas fa-warehouse me-1" aria-hidden="true"></i>
+                            <strong>Central Procurement:</strong> Supplier purchases and vendor settlements are centralized at HQ / Central Warehouse.
+                        </div>
+
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <label>Purchase Number</label>

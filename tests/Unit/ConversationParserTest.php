@@ -116,4 +116,19 @@ class ConversationParserTest extends TestCase
         $this->assertArrayNotHasKey('product', $parser->parse('Stock value for all products'));
         $this->assertSame('General', $parser->parse('Stock value for category "General"')['category']);
     }
+    public function test_outlet_filter_is_parsed_and_cleared(): void
+    {
+        $parser = new ConversationParser();
+        $report = $parser->parse('sales today for outlet "Ikeja"');
+        $this->assertSame('sales', $report['intent']);
+        $this->assertSame('Ikeja', $report['outlet']);
+
+        $stock = $parser->parse('stock balance at branch "Victoria Island"');
+        $this->assertSame('stock_balance', $stock['intent']);
+        $this->assertSame('Victoria Island', $stock['outlet']);
+
+        $all = $parser->parse('sales today for all outlets', $report);
+        $this->assertSame('sales', $all['intent']);
+        $this->assertArrayNotHasKey('outlet', $all);
+    }
 }

@@ -22,6 +22,13 @@ class StockAdjustmentDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('outlet_name', function ($row) {
+                if (! $row->outlet) {
+                    return '<span class="badge bg-secondary">Central</span>';
+                }
+                $badgeClass = $row->outlet->is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($row->outlet->name) . '</span>';
+            })
             ->addColumn('created_by_name', function ($row) {
                 if (!Gate::allows('user-audit-view')) {
                     return '';
@@ -106,7 +113,7 @@ class StockAdjustmentDataTable extends DataTable
             ->editColumn('total_value', function ($row) {
                 return number_format((float) $row->total_value, 2);
             })
-            ->rawColumns(['type_badge', 'accounting_posting_status', 'action_button'])
+            ->rawColumns(['outlet_name', 'type_badge', 'accounting_posting_status', 'action_button'])
             ->setRowId('id');
     }
 
@@ -115,16 +122,24 @@ class StockAdjustmentDataTable extends DataTable
      */
     public function query(StockAdjustment $model): QueryBuilder
     {
+        $currentUser = auth()->user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+
         $query = $model->newQuery()
-            ->with('createdBy')
+            ->with(['createdBy', 'outlet'])
             ->orderBy('adjustment_date', 'desc')
             ->orderBy('id', 'desc');
+
+        if ($assignedOutletId) {
+            $query->where('outlet_id', $assignedOutletId);
+        } elseif ($this->request()->filled('outlet_id')) {
+            $query->where('outlet_id', (int) $this->request()->get('outlet_id'));
+        }
 
         $status = (string) $this->request()->get('accounting_status', '');
         if (in_array($status, ['unposted', 'posted', 'reversed'], true)) {
             $query->where('accounting_status', $status);
         } else {
-            $currentUser = auth()->user();
             $isCashier = $currentUser
                 && method_exists($currentUser, 'hasRole')
                 && $currentUser->hasRole('Cashier');
@@ -162,6 +177,7 @@ class StockAdjustmentDataTable extends DataTable
         $columns = [
             Column::make('adjustment_date')->title('Date'),
             Column::make('reference_no')->title('Reference No'),
+            Column::make('outlet_name')->title('Branch / Outlet'),
             Column::make('type_badge')->title('Type'),
             Column::make('accounting_posting_status')->title('Accounting Status')->searchable(false),
             Column::make('reason')->title('Reason'),

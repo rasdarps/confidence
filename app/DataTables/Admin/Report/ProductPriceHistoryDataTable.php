@@ -36,11 +36,16 @@ class ProductPriceHistoryDataTable extends DataTable
 
                 return optional($createdByUser)->name ?? 'N/A';
             })
-             ->editColumn('created_at', function($row)
-            {
-                return  Carbon::parse($row->created_at)->format('d-m-Y');
+            ->editColumn('cost_price', function ($row) {
+                return number_format((float) $row->cost_price, 2);
             })
-            ->editColumn('updated_at', function($row) {
+            ->editColumn('selling_price', function ($row) {
+                return number_format((float) $row->selling_price, 2);
+            })
+            ->editColumn('created_at', function ($row) {
+                return Carbon::parse($row->created_at)->format('d-m-Y');
+            })
+            ->editColumn('updated_at', function ($row) {
                 return $row->updated_at
                     ? Carbon::parse($row->updated_at)->format('d-m-Y')
                     : '';
@@ -55,8 +60,7 @@ class ProductPriceHistoryDataTable extends DataTable
     {
         $query = $model->newQuery()
             ->select('product_prices.*')
-            ->with('product')
-            ->with(['createdBy'])
+            ->with(['product', 'createdBy'])
             ->latest('created_at');
 
         if ($productId = $this->request()->get('product_id')) {
@@ -87,11 +91,10 @@ class ProductPriceHistoryDataTable extends DataTable
                     ->setTableId('productpricehistory-table')
                     ->columns($this->getColumns())
                     ->minifiedAjax(request()->getRequestUri())
-                    //->dom('Bfrtip')
-                    ->orderBy(1)
+                    ->orderBy(0, 'desc')
                     ->selectStyleSingle()
                     ->parameters([
-                        'dom'          => "<'row'l>Bfrtip",  //row counter button
+                        'dom'          => "<'row'l>Bfrtip",
                         'buttons'      => ['colvis', 'excel', 'csv', 'reset', 'reload'],
                     ]);
     }
@@ -103,13 +106,13 @@ class ProductPriceHistoryDataTable extends DataTable
     {
         $columns = [
             Column::make('created_at')->title('Date Created'),
-            Column::make('product.name')->title('Product Name'),
+            Column::make('product.name')->title('Product Name')->orderable(false),
             Column::make('cost_price')->title('Cost Price'),
             Column::make('selling_price')->title('Selling Price'),
         ];
 
         if (Gate::allows('user-audit-view')) {
-            $columns[] = Column::make('created_by_name')->title('Created By');
+            $columns[] = Column::make('created_by_name')->title('Created By')->searchable(false)->orderable(false);
         }
 
         return $columns;

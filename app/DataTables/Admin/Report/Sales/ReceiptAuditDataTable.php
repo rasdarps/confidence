@@ -15,6 +15,14 @@ class ReceiptAuditDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('outlet_name', function ($event) {
+                $name = $event->outlet_name ?? 'Central Warehouse';
+                $isCentral = (bool) ($event->outlet_is_central ?? false);
+                if ($isCentral) {
+                    return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($name) . ' <small>(Central)</small></span>';
+                }
+                return '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="ri-store-2-line me-1"></i>' . e($name) . '</span>';
+            })
             ->addColumn('event_label', function ($event) {
                 return match ($event->event_type) {
                     'original' => 'Original Print',
@@ -44,7 +52,7 @@ class ReceiptAuditDataTable extends DataTable
             })
             ->filterColumn('sale_no', fn ($query, $keyword) => $query->where('sales.sale_no', 'like', "%{$keyword}%"))
             ->filterColumn('operator_name', fn ($query, $keyword) => $query->where('users.name', 'like', "%{$keyword}%"))
-            ->rawColumns(['delivery_status'])
+            ->rawColumns(['outlet_name', 'delivery_status'])
             ->setRowId('id');
     }
 
@@ -57,6 +65,7 @@ class ReceiptAuditDataTable extends DataTable
 
         $query = $model->newQuery()
             ->join('sales', 'sales.id', '=', 'sale_receipt_events.sale_id')
+            ->leftJoin('outlets', 'outlets.id', '=', 'sales.outlet_id')
             ->leftJoin('users', 'users.id', '=', 'sale_receipt_events.operator_id')
             ->leftJoinSub($printCounts, 'print_counts', function ($join) {
                 $join->on('print_counts.sale_id', '=', 'sales.id');
@@ -64,12 +73,23 @@ class ReceiptAuditDataTable extends DataTable
             ->select([
                 'sale_receipt_events.*',
                 'sales.sale_no',
+                'sales.outlet_id',
                 'sales.delivered_at',
+                'outlets.name as outlet_name',
+                'outlets.is_central as outlet_is_central',
                 'users.name as operator_name',
                 DB::raw('COALESCE(print_counts.total_print_count, 0) as total_print_count'),
             ]);
 
         $viewer = auth()->user();
+        $outletId = ($viewer && $viewer->outlet_id)
+            ? (int) $viewer->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
+
         $viewerIsSuperAdmin = $viewer && (
             strtolower((string) ($viewer->user_type ?? '')) === 'super admin'
             || DB::table('model_has_roles')
@@ -122,7 +142,7 @@ class ReceiptAuditDataTable extends DataTable
             ->setTableId('receipt-audit-table')
             ->columns($this->getColumns())
             ->minifiedAjax(request()->getRequestUri())
-            ->orderBy(9, 'desc')
+            ->orderBy(10, 'desc')
             ->selectStyleSingle()
             ->parameters([
                 'dom' => "<'row'l>Bfrtip",
@@ -135,6 +155,7 @@ class ReceiptAuditDataTable extends DataTable
     {
         return [
             Column::make('sale_no')->title('Invoice No')->name('sales.sale_no'),
+            Column::computed('outlet_name')->title('Outlet / Branch')->searchable(false)->orderable(false),
             Column::make('total_print_count')->title('Print Count')->searchable(false),
             Column::make('event_label')->title('Event')->name('sale_receipt_events.event_type'),
             Column::make('printed_by')->title('Printed By')->name('users.name'),

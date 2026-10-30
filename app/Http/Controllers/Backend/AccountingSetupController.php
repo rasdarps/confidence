@@ -7,7 +7,9 @@ use App\DataTables\Admin\Accounting\AccountingFiscalPeriodsDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\AccountingAccount;
 use App\Models\AccountingFiscalPeriod;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class AccountingSetupController extends Controller
 {
@@ -17,7 +19,9 @@ class AccountingSetupController extends Controller
         $this->middleware('permission:accounting-coa-create')->only('coaStore');
         $this->middleware('permission:accounting-coa-edit')->only('coaUpdate');
         $this->middleware('permission:accounting-fiscal-period-list')->only('fiscalPeriodsIndex');
-        $this->middleware('permission:accounting-fiscal-period-close')->only('fiscalPeriodClose');
+        $this->middleware('permission:accounting-fiscal-period-create|accounting-fiscal-period-close')->only('fiscalPeriodStore');
+        $this->middleware('permission:accounting-fiscal-period-edit|accounting-fiscal-period-close')->only('fiscalPeriodUpdate');
+        $this->middleware('permission:accounting-fiscal-period-close')->only(['fiscalPeriodClose', 'fiscalPeriodReopen']);
     }
 
     public function coaIndex(AccountingAccountsDataTable $dataTable)
@@ -76,6 +80,110 @@ class AccountingSetupController extends Controller
         return $dataTable->render('backend.accounting.fiscal_periods');
     }
 
+    public function fiscalPeriodStore(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $overlap = AccountingFiscalPeriod::query()
+            ->where(function ($query) use ($data) {
+                $query->whereDate('start_date', '<=', $data['end_date'])
+                      ->whereDate('end_date', '>=', $data['start_date']);
+            })
+            ->first();
+
+        if ($overlap) {
+            $msg = sprintf(
+                'Date range overlaps with existing fiscal period "%s" (%s to %s).',
+                $overlap->name,
+                $overlap->start_date ? Carbon::parse($overlap->start_date)->format('Y-m-d') : '',
+                $overlap->end_date ? Carbon::parse($overlap->end_date)->format('Y-m-d') : ''
+            );
+
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages(['start_date' => $msg]);
+            }
+
+            return redirect()->back()->withInput()->withErrors(['start_date' => $msg]);
+        }
+
+        AccountingFiscalPeriod::create([
+            'name' => $data['name'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
+            'is_closed' => false,
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Fiscal period created successfully.']);
+        }
+
+        return redirect()->route('accounting.setup.fiscal-periods.index')->with([
+            'message' => 'Fiscal period created successfully.',
+            'alert-type' => 'success',
+        ]);
+    }
+
+    public function fiscalPeriodUpdate(Request $request, int $id)
+    {
+        $period = AccountingFiscalPeriod::findOrFail($id);
+
+        if ($period->is_closed) {
+            $msg = 'Closed fiscal periods cannot be edited. Please reopen the period first.';
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages(['name' => $msg]);
+            }
+            return redirect()->back()->withInput()->withErrors(['name' => $msg]);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $overlap = AccountingFiscalPeriod::query()
+            ->where('id', '!=', $period->id)
+            ->where(function ($query) use ($data) {
+                $query->whereDate('start_date', '<=', $data['end_date'])
+                      ->whereDate('end_date', '>=', $data['start_date']);
+            })
+            ->first();
+
+        if ($overlap) {
+            $msg = sprintf(
+                'Date range overlaps with existing fiscal period "%s" (%s to %s).',
+                $overlap->name,
+                $overlap->start_date ? Carbon::parse($overlap->start_date)->format('Y-m-d') : '',
+                $overlap->end_date ? Carbon::parse($overlap->end_date)->format('Y-m-d') : ''
+            );
+
+            if ($request->expectsJson()) {
+                throw ValidationException::withMessages(['start_date' => $msg]);
+            }
+
+            return redirect()->back()->withInput()->withErrors(['start_date' => $msg]);
+        }
+
+        $period->update([
+            'name' => $data['name'],
+            'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'],
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Fiscal period updated successfully.']);
+        }
+
+        return redirect()->route('accounting.setup.fiscal-periods.index')->with([
+            'message' => 'Fiscal period updated successfully.',
+            'alert-type' => 'success',
+        ]);
+    }
+
     public function fiscalPeriodClose(int $id)
     {
         $period = AccountingFiscalPeriod::findOrFail($id);
@@ -95,6 +203,29 @@ class AccountingSetupController extends Controller
 
         return redirect()->route('accounting.setup.fiscal-periods.index')->with([
             'message' => 'Fiscal period closed successfully.',
+            'alert-type' => 'success',
+        ]);
+    }
+
+    public function fiscalPeriodReopen(int $id)
+    {
+        $period = AccountingFiscalPeriod::findOrFail($id);
+
+        if (!$period->is_closed) {
+            return redirect()->route('accounting.setup.fiscal-periods.index')->with([
+                'message' => 'Fiscal period is already open.',
+                'alert-type' => 'info',
+            ]);
+        }
+
+        $period->update([
+            'is_closed' => false,
+            'closed_at' => null,
+            'closed_by' => null,
+        ]);
+
+        return redirect()->route('accounting.setup.fiscal-periods.index')->with([
+            'message' => 'Fiscal period reopened successfully.',
             'alert-type' => 'success',
         ]);
     }

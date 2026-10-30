@@ -131,3 +131,4 @@ class StockTransferDataTable extends DataTable
         ];
     }
 }
+

@@ -28,6 +28,26 @@
 
                         <h4 class="card-title">All Stock Adjustments</h4>
                         <div class="row mb-3">
+                            @if(!empty($outlets) && !$assignedOutletId)
+                                <div class="col-md-3">
+                                    <label for="filter_outlet_id">Branch / Outlet</label>
+                                    <select id="filter_outlet_id" class="form-control">
+                                        <option value="">All Outlets</option>
+                                        @foreach($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @elseif($assignedOutletId && !empty($outlets))
+                                <div class="col-md-3">
+                                    <label>Branch / Outlet</label>
+                                    <div>
+                                        <span class="badge bg-primary p-2 fs-6">
+                                            <i class="fas fa-store"></i> {{ optional($outlets->firstWhere('id', $assignedOutletId))->name ?? 'Assigned Station' }}
+                                        </span>
+                                    </div>
+                                </div>
+                            @endif
                             <div class="col-md-3">
                                 <label for="filter_accounting_status">Accounting Status</label>
                                 <select id="filter_accounting_status" class="form-control">
@@ -59,17 +79,23 @@
         const defaultAccountingStatus = @json($defaultAccountingStatus);
         let table = $('#stock-adjustment-table').DataTable();
 
-        $('#filter_accounting_status').on('change', function () {
+        $('#filter_accounting_status, #filter_outlet_id').on('change', function () {
             table.ajax.reload();
         });
 
         $('#reset_filters').on('click', function () {
             $('#filter_accounting_status').val(defaultAccountingStatus);
+            if ($('#filter_outlet_id').length) {
+                $('#filter_outlet_id').val('');
+            }
             table.ajax.reload();
         });
 
         table.on('preXhr.dt', function (e, settings, data) {
             data.accounting_status = $('#filter_accounting_status').val();
+            if ($('#filter_outlet_id').length) {
+                data.outlet_id = $('#filter_outlet_id').val();
+            }
         });
     });
 </script>

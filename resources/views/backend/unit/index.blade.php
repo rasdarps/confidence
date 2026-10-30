@@ -21,10 +21,21 @@
                 <div class="card">
                     <div class="card-body">
 
-                        <a href="{{ route('units.create') }}" class="btn btn-success" style="float:right;">
-                            <i class="fas fa-plus-circle"> Add Unit </i>
-                        </a> 
-                        <br><br>               
+                        @if(auth()->user()->isCentral() && auth()->user()->can('unit-create'))
+                            <a href="{{ route('units.create') }}" class="btn btn-success" style="float:right;">
+                                <i class="fas fa-plus-circle"> Add Unit </i>
+                            </a> 
+                        @else
+                            <span class="badge bg-secondary p-2" style="float:right;"><i class="fas fa-lock me-1"></i> Read-Only (Central Managed)</span>
+                        @endif
+                        <br><br>
+
+                        <div class="alert alert-info d-flex align-items-center mb-3">
+                            <i class="fas fa-balance-scale fa-lg mr-3 me-2"></i>
+                            <div>
+                                <strong>Enterprise Measurement Units:</strong> Units of measurement are defined centrally at Headquarters and shared across Central Warehouse intake, inter-outlet stock transfers, and branch retail checkout.
+                            </div>
+                        </div>
 
                         <h4 class="card-title">Unit All Data</h4>
 

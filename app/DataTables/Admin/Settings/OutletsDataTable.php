@@ -37,23 +37,23 @@ class OutletsDataTable extends DataTable
                 $buttons = [];
                 if (Gate::allows('outlet-edit')) {
                     $buttons[] = '
-                    <a href="' . $editUrl . '" class="btn btn-sm btn-success">
+                    <a href="' . $editUrl . '" class="btn-action-edit table-edit-btn" title="Edit Outlet">
                         <i class="fas fa-edit"></i>
                     </a>';
                 }
 
                 if (Gate::allows('outlet-delete') && !$row->is_central) {
                     $buttons[] = '
-                    <form class="d-inline-block m-0" action="' . $deleteUrl . '" method="POST" onsubmit="return confirm(\'Are you sure you want to deactivate this outlet?\');">
+                    <form class="d-inline-block m-0" action="' . $deleteUrl . '" method="POST">
                         ' . $csrf . '
                         ' . $method . '
-                        <button type="submit" class="btn btn-sm btn-danger">
-                            <i class="fas fa-trash"></i>
+                        <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Deactivate Outlet">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
                 }
 
-                return implode(' ', $buttons);
+                return '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons">' . implode('', $buttons) . '</div>';
             })
             ->rawColumns(['type', 'is_active', 'action']);
     }
@@ -87,3 +87,4 @@ class OutletsDataTable extends DataTable
         ];
     }
 }
+

@@ -15,15 +15,17 @@
                 <div class="card-header with-border">
                     <span class="card-title" style="font-size:20px;">Create | Customer </span>
 
-                    <a href="{{route('customers.index')}}" style="float:right">
-                        <button type="button" class="btn btn-primary modal_btn">
-                            View Customers
-                        </button>
+                    <a href="{{route('customers.index')}}" class="btn btn-modern-header" style="float:right">
+                        <i class="fas fa-list me-1 mr-1"></i> View Customers
                     </a>
 
                     <hr>
 
                     <div class="card-body">
+                        <div class="alert alert-info py-2 mb-3" role="alert">
+                            <i class="fas fa-users me-1" aria-hidden="true"></i>
+                            <strong>Unified Directory:</strong> Customers added here are immediately recognized across all branch stations and Central Warehouse for cash and credit purchases.
+                        </div>
 
                         <form action="{{ route('customers.store') }}" method="POST" id="myForm" enctype="multipart/form-data">
                             @csrf
@@ -70,9 +72,14 @@
                             </div>
                             {{-- row 2 ends --}}
 
-                            <div class="row">
+                            <div class="row mt-4 pt-3 border-top">
                                 <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-success mt-3">Submit</button>
+                                    <a href="{{ route('customers.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                        <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-modern-primary">
+                                        <i class="fas fa-check-circle me-1 mr-1"></i> Create Customer
+                                    </button>
                                 </div>
                             </div>
                             {{-- row 3 ends --}}

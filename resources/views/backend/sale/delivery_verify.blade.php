@@ -232,6 +232,24 @@
             <div class="delivery-verify-mark" aria-hidden="true"><i class="fas fa-barcode"></i></div>
             <h1 class="delivery-verify-title">Delivery Verification</h1>
             <p class="delivery-verify-subtitle">Scan the receipt barcode or enter the code manually.</p>
+            @if(!empty($assignedOutlet))
+                <div class="mt-3">
+                    <span class="badge bg-light text-dark border px-3 py-2" style="font-size: 13px;">
+                        <i class="fas fa-store text-primary me-1"></i> Verification Station: <strong>{{ $assignedOutlet->name }}</strong>
+                        @if($assignedOutlet->is_central)
+                            <span class="badge bg-secondary ms-1">Central Warehouse</span>
+                        @else
+                            <span class="badge bg-success ms-1">Retail Branch</span>
+                        @endif
+                    </span>
+                </div>
+            @else
+                <div class="mt-3">
+                    <span class="badge bg-light text-secondary border px-3 py-2" style="font-size: 13px;">
+                        <i class="fas fa-globe me-1"></i> Verification Station: <strong>All Outlets (Central / Admin)</strong>
+                    </span>
+                </div>
+            @endif
         </div>
 
         <form id="deliveryVerifyForm" action="{{ route('sales.delivery.verify') }}" method="POST">
@@ -303,8 +321,47 @@
                 const payload = await response.json();
                 const success = payload.status === 'success';
                 const duplicate = payload.status === 'duplicate';
-                result.className = 'delivery-result alert ' + (success ? 'alert-success' : (duplicate ? 'alert-warning' : 'alert-danger'));
-                result.textContent = payload.message || 'Unable to verify delivery.';
+                const isCrossOutlet = payload.status === 'cross_outlet';
+
+                function escapeHtml(text) {
+                    var div = document.createElement('div');
+                    div.textContent = text || '';
+                    return div.innerHTML;
+                }
+
+                if (success && payload.sale) {
+                    var sale = payload.sale;
+                    result.className = 'delivery-result alert alert-success';
+                    var html = '<div class="d-flex align-items-center mb-2"><i class="fas fa-check-circle fa-2x me-2 text-success"></i><div><h5 class="mb-0 fw-bold text-success">Delivery Verified!</h5><small class="text-muted">' + escapeHtml(payload.message) + '</small></div></div>';
+                    html += '<hr class="my-2">';
+                    html += '<div class="row g-2 mb-2 text-dark" style="font-size: 13px;">';
+                    html += '<div class="col-sm-6"><strong>Sale #:</strong> #' + escapeHtml(sale.sale_no) + '</div>';
+                    html += '<div class="col-sm-6"><strong>Branch:</strong> <span class="badge bg-light text-dark border">' + escapeHtml(sale.outlet_name) + '</span></div>';
+                    html += '<div class="col-sm-6"><strong>Customer:</strong> ' + escapeHtml(sale.customer_name) + '</div>';
+                    html += '<div class="col-sm-6"><strong>Verified At:</strong> ' + escapeHtml(sale.delivered_at) + '</div>';
+                    html += '</div>';
+
+                    if (sale.items && sale.items.length > 0) {
+                        html += '<h6 class="fw-bold mt-3 mb-2 text-dark"><i class="fas fa-box-open me-1"></i> Items to Release:</h6>';
+                        html += '<div class="table-responsive bg-white rounded border"><table class="table table-sm table-bordered mb-0">';
+                        html += '<thead class="table-light"><tr><th>Item</th><th>Unit</th><th class="text-end">Qty</th></tr></thead><tbody>';
+                        sale.items.forEach(function(item) {
+                            html += '<tr><td>' + escapeHtml(item.product_name) + '</td><td>' + escapeHtml(item.unit) + '</td><td class="text-end fw-bold">' + item.quantity + '</td></tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+                    result.innerHTML = html;
+                } else if (isCrossOutlet) {
+                    result.className = 'delivery-result alert alert-danger';
+                    result.innerHTML = '<div class="d-flex align-items-center"><i class="fas fa-ban fa-2x me-2 text-danger"></i><div><h6 class="mb-0 fw-bold">Cross-Branch Delivery Prohibited</h6><small>' + escapeHtml(payload.message) + '</small></div></div>';
+                } else if (duplicate) {
+                    result.className = 'delivery-result alert alert-warning';
+                    result.innerHTML = '<div class="d-flex align-items-center"><i class="fas fa-exclamation-triangle fa-2x me-2 text-warning"></i><div><h6 class="mb-0 fw-bold">Already Delivered</h6><small>' + escapeHtml(payload.message) + '</small></div></div>';
+                } else {
+                    result.className = 'delivery-result alert alert-danger';
+                    result.innerHTML = '<div class="d-flex align-items-center"><i class="fas fa-times-circle fa-2x me-2 text-danger"></i><div><h6 class="mb-0 fw-bold">Verification Failed</h6><small>' + escapeHtml(payload.message || 'Unable to verify delivery.') + '</small></div></div>';
+                }
+
                 if (success || duplicate) input.value = '';
             } catch (error) {
                 result.className = 'delivery-result alert alert-danger';

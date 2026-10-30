@@ -40,15 +40,26 @@
                             @method('PATCH')
 
                             <div class="row mb-3">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label><strong>Branch / Outlet</strong></label>
+                                        <div>
+                                            <span class="badge {{ optional($reconciliation->outlet)->is_central ? 'bg-primary' : 'bg-info' }} p-2 fs-6">
+                                                <i class="fas fa-store"></i> {{ optional($reconciliation->outlet)->name ?: 'Central Warehouse' }}
+                                            </span>
+                                        </div>
+                                        <input type="hidden" id="outlet_id" name="outlet_id" value="{{ $reconciliation->outlet_id }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <label>Business Date</label>
                                     <input type="date" id="business_date" name="business_date" class="form-control" value="{{ old('business_date', optional($reconciliation->business_date)->format('Y-m-d')) }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label>Opening Float</label>
                                     <input type="number" step="0.01" min="0" id="opening_float" name="opening_float" class="form-control" value="{{ old('opening_float', number_format((float) $reconciliation->opening_float, 2, '.', '')) }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label>Physical Counted Cash</label>
                                     <input type="number" step="0.01" min="0" id="physical_counted_cash" name="physical_counted_cash" class="form-control" value="{{ old('physical_counted_cash', number_format((float) $reconciliation->physical_counted_cash, 2, '.', '')) }}">
                                 </div>
@@ -142,7 +153,8 @@ $(function () {
     function loadExpected() {
         $.get(expectedUrl, {
             business_date: $('#business_date').val(),
-            opening_float: $('#opening_float').val()
+            opening_float: $('#opening_float').val(),
+            outlet_id: $('#outlet_id').val()
         }).done(function (res) {
             $('#expected_cash_sales').val(formatMoney(res.expected_cash_sales));
             $('#expected_cash_expenses').val(formatMoney(res.expected_cash_expenses));
@@ -151,7 +163,7 @@ $(function () {
         });
     }
 
-    $('#business_date, #opening_float').on('change input', function () {
+    $('#business_date, #opening_float, #outlet_id').on('change input', function () {
         loadExpected();
     });
 

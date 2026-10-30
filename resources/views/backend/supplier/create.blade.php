@@ -14,15 +14,17 @@
                         <div class="card-header with-border">
                             <span class="card-title" style="font-size:20px;">Create | Supplier </span>
 
-                            <a href="{{route('suppliers.index')}}" style="float:right">
-                                <button type="button" class="btn btn-primary modal_btn">
-                                    View Suppliers
-                                </button>
+                            <a href="{{route('suppliers.index')}}" class="btn btn-modern-header" style="float:right">
+                                <i class="fas fa-list me-1 mr-1"></i> View Suppliers
                             </a>
 
                               <hr>
 
                             <div class="card-body">
+                                <div class="alert alert-info py-2 mb-3" role="alert">
+                                    <i class="fas fa-truck me-1" aria-hidden="true"></i>
+                                    <strong>Central Procurement:</strong> Suppliers added here are vendor partners who supply stock to the Central Warehouse (HQ).
+                                </div>
 
                                 <form action="{{ route('suppliers.store') }}" method="POST" id="myForm" enctype="multipart/form-data" novalidate>
                                     @csrf
@@ -93,9 +95,14 @@
                                     </div>
                                     {{-- row 3 ends --}}
 
-                                    <div class="row">
+                                    <div class="row mt-4 pt-3 border-top">
                                         <div class="col-12 text-center">
-                                            <button type="submit" class="btn btn-success mt-3">Submit</button>
+                                            <a href="{{ route('suppliers.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                                <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                            </a>
+                                            <button type="submit" class="btn btn-modern-primary">
+                                                <i class="fas fa-check-circle me-1 mr-1"></i> Create Supplier
+                                            </button>
                                         </div>
                                     </div>
                                     {{-- row 4 ends --}}

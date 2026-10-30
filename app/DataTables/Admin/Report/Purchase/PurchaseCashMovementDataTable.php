@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Admin\Report\Purchase;
 
+use App\Models\Outlet;
 use App\Models\PurchasePaymentDetail;
 use App\Support\PaymentStatus;
 use Carbon\Carbon;
@@ -15,9 +16,14 @@ class PurchaseCashMovementDataTable extends DataTable
 {
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
+        $centralName = Outlet::where('is_central', true)->value('name') ?? 'Central Warehouse';
+
         return (new EloquentDataTable($query))
             ->editColumn('payment_date', function ($row) {
                 return $row->payment_date ? Carbon::parse($row->payment_date)->format('d-m-Y') : 'N/A';
+            })
+            ->addColumn('receiving_location', function () use ($centralName) {
+                return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($centralName) . ' <small>(Central)</small></span>';
             })
             ->editColumn('paid_status', function ($row) {
                 return match ($row->paid_status) {
@@ -35,6 +41,7 @@ class PurchaseCashMovementDataTable extends DataTable
             ->editColumn('due_amount', function ($row) {
                 return number_format((float) $row->due_amount, 2);
             })
+            ->rawColumns(['receiving_location'])
             ->setRowId('id');
     }
 
@@ -146,6 +153,7 @@ class PurchaseCashMovementDataTable extends DataTable
         return [
             Column::make('payment_date')->title('Payment Date'),
             Column::make('purchase_no')->title('Purchase No'),
+            Column::computed('receiving_location')->title('Receiving Location')->searchable(false)->orderable(false),
             Column::make('supplier_name')->title('Supplier'),
             Column::make('paid_status')->title('Payment Type'),
             Column::make('total_amount')->title('Invoice Amount (Gh¢)')->searchable(false),

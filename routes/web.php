@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\Route;
 //require __DIR__.'/auth.php';
 
 Route::get('/admin/home', function () {
-    return view('welcome');
+    return redirect()->route('dashboard');
 });
 
 // Route::get('/', function () {
@@ -54,7 +54,7 @@ Route::get('/', function () {
 
 Route::prefix('admin')->group(function () {
 
-    Auth::routes();
+    Auth::routes(['register' => false]);
 
 
         Route::middleware(['auth', 'force.password.change'])->group(function(){
@@ -68,7 +68,10 @@ Route::prefix('admin')->group(function () {
 
              // Admin All Route 
                 Route::controller(AdminController::class)->group(function () {
-                Route::get('/admin/logout', 'destroy')->name('admin.logout');
+                Route::post('/admin/logout', 'destroy')->name('admin.logout');
+                Route::get('/admin/logout', function() {
+                    return redirect('/admin/login');
+                });
                 Route::get('/admin/profile', 'Profile')->name('admin.profile');
                 Route::get('/edit/profile', 'EditProfile')->name('edit.profile');
                 Route::post('/store/profile', 'StoreProfile')->name('store.profile');
@@ -367,7 +370,10 @@ Route::prefix('admin')->group(function () {
                 Route::patch('/coa/{id}', [AccountingSetupController::class, 'coaUpdate'])->name('coa.update');
 
                 Route::get('/fiscal-periods', [AccountingSetupController::class, 'fiscalPeriodsIndex'])->name('fiscal-periods.index');
+                Route::post('/fiscal-periods', [AccountingSetupController::class, 'fiscalPeriodStore'])->name('fiscal-periods.store');
+                Route::patch('/fiscal-periods/{id}', [AccountingSetupController::class, 'fiscalPeriodUpdate'])->name('fiscal-periods.update');
                 Route::post('/fiscal-periods/{id}/close', [AccountingSetupController::class, 'fiscalPeriodClose'])->name('fiscal-periods.close');
+                Route::post('/fiscal-periods/{id}/reopen', [AccountingSetupController::class, 'fiscalPeriodReopen'])->name('fiscal-periods.reopen');
 
                 Route::get('/bank-accounts', [BankingController::class, 'bankAccountsIndex'])->name('bank-accounts.index');
                 Route::post('/bank-accounts', [BankingController::class, 'bankAccountStore'])->name('bank-accounts.store');

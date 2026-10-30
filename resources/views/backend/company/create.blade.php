@@ -14,15 +14,17 @@
                         <div class="card-header with-border">
                             <span class="card-title" style="font-size:20px;">Create | Company </span>
 
-                            <a href="{{route('companies.index')}}" style="float:right">
-                                <button type="button" class="btn btn-primary modal_btn">
-                                    View Companies
-                                </button>
+                            <a href="{{route('companies.index')}}" class="btn btn-modern-header" style="float:right">
+                                <i class="fas fa-list me-1 mr-1"></i> View Companies
                             </a>
 
                               <hr>
 
                             <div class="card-body">
+                                <div class="alert alert-info py-2 mb-3" role="alert">
+                                    <i class="fas fa-building me-1" aria-hidden="true"></i>
+                                    <strong>Corporate Legal Entity:</strong> This defines the parent company name, head office, and Ghana Card (TIN) that all retail branches and Central Warehouse operate under.
+                                </div>
 
                                 <form action="{{ route('companies.store') }}" method="POST" id="myForm" enctype="multipart/form-data" novalidate>
                                     @csrf
@@ -79,9 +81,14 @@
                                     </div>
                                     {{-- row 3 ends --}}
 
-                                    <div class="row">
+                                    <div class="row mt-4 pt-3 border-top">
                                         <div class="col-12 text-center">
-                                            <button type="submit" class="btn btn-success mt-3">Submit</button>
+                                            <a href="{{ route('companies.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                                <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                            </a>
+                                            <button type="submit" class="btn btn-modern-primary">
+                                                <i class="fas fa-check-circle me-1 mr-1"></i> Create Company
+                                            </button>
                                         </div>
                                     </div>
                                     {{-- row 3 ends --}}

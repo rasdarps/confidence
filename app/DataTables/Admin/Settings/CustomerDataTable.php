@@ -22,7 +22,31 @@ class CustomerDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-            ->addColumn('action', 'customer.action')
+            ->editColumn('name', function($row) {
+                $isCash = (int) $row->id === 1 || strtolower((string) $row->name) === 'cash_sales';
+                if ($isCash) {
+                    return e($row->name) . ' <span class="badge bg-secondary ms-1">Default Walk-In</span>';
+                }
+                return e($row->name);
+            })
+            ->addColumn('registration_origin', function($row) {
+                if ((int) $row->id === 1 || strtolower((string) $row->name) === 'cash_sales') {
+                    return '<span class="badge bg-secondary">System Default</span>';
+                }
+                $outlet = optional(optional($row->createdBy)->outlet);
+                if ($outlet && $outlet->name) {
+                    $badgeClass = $outlet->is_central ? 'bg-primary' : 'bg-info';
+                    return '<span class="badge ' . $badgeClass . '">' . e($outlet->name) . '</span>';
+                }
+                return '<span class="badge bg-secondary">Central HQ</span>';
+            })
+            ->addColumn('total_due_formatted', function($row) {
+                $due = round((float) ($row->total_due ?? 0), 2);
+                if ($due > 0) {
+                    return '<span class="badge bg-danger text-white"> ' . number_format($due, 2) . '</span>';
+                }
+                return '<span class="text-success fw-bold"> 0.00</span>';
+            })
             ->addColumn('edit_button', function($row) {
                     $editUrl = route('customers.edit', Crypt::encrypt($row->id));
                     $deleteUrl = route('customers.destroy', Crypt::encrypt($row->id));
@@ -30,30 +54,31 @@ class CustomerDataTable extends DataTable
                     $method = method_field('DELETE');
 
                     $buttons = [];
+                    $isCash = (int) $row->id === 1 || strtolower((string) $row->name) === 'cash_sales';
 
                     if (Gate::allows('customer-edit')) {
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                             '.$csrf.'
-                            <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                                <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                            <button class="btn-action-edit table-edit-btn" title="Edit Customer">
+                                <i class="fas fa-edit"></i>
                             </button>
                         </form>';
                     }
 
-                    if (Gate::allows('customer-delete')) {
+                    if (Gate::allows('customer-delete') && !$isCash) {
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                             '.$csrf.'
                             '.$method.'
-                            <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                                <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                            <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete Customer">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </form>';
                     }
 
                     if (empty($buttons)) {
-                        return '<span class="text-muted">No actions</span>';
+                        return '<span class="text-muted small">System Locked</span>';
                     }
 
                     return '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons">' . implode('', $buttons) . '</div>';
@@ -69,7 +94,7 @@ class CustomerDataTable extends DataTable
                     : '';
             })
 
-             ->rawColumns(['edit_button'])
+            ->rawColumns(['name', 'registration_origin', 'total_due_formatted', 'edit_button'])
             ->setRowId('id');
     }
 
@@ -78,7 +103,10 @@ class CustomerDataTable extends DataTable
      */
     public function query(Customer $model): QueryBuilder
     {
-        return $model->newQuery()->orderBy('name', 'asc');
+        return $model->newQuery()
+            ->with(['createdBy.outlet:id,name,is_central'])
+            ->withSum('payments as total_due', 'due_amount')
+            ->orderBy('name', 'asc');
     }
 
     /**
@@ -105,12 +133,12 @@ class CustomerDataTable extends DataTable
     public function getColumns(): array
     {
         $columns = [
-            Column::make('name'),
-            Column::make('mobile_no'),
-             Column::make('email'),
-             Column::make('address'),
-            //  Column::make('created_at'),
-            //  Column::make('updated_at'),
+            Column::make('name')->title('Customer Name'),
+            Column::make('registration_origin')->title('Registration Origin')->searchable(false),
+            Column::make('mobile_no')->title('Mobile No'),
+            Column::make('email')->title('Email'),
+            Column::make('total_due_formatted')->title('Total Due (Gh¢)')->searchable(false),
+            Column::make('address')->title('Address'),
         ];
 
         if (Gate::allows('customer-edit') || Gate::allows('customer-delete')) {

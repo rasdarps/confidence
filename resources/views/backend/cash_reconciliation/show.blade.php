@@ -45,9 +45,15 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-4"><strong>Date:</strong> {{ Carbon::parse($reconciliation->business_date)->format('d-m-Y') }}</div>
-                            <div class="col-md-4"><strong>Cashier:</strong> {{ optional($reconciliation->user)->name ?: '-' }}</div>
-                            <div class="col-md-4"><strong>Status:</strong> {{ ucfirst((string) $reconciliation->status) }}</div>
+                            <div class="col-md-3"><strong>Date:</strong> {{ Carbon::parse($reconciliation->business_date)->format('d-m-Y') }}</div>
+                            <div class="col-md-3">
+                                <strong>Branch / Outlet:</strong>
+                                <span class="badge {{ optional($reconciliation->outlet)->is_central ? 'bg-primary' : 'bg-info' }}">
+                                    {{ optional($reconciliation->outlet)->name ?: 'Central Warehouse' }}
+                                </span>
+                            </div>
+                            <div class="col-md-3"><strong>Cashier:</strong> {{ optional($reconciliation->user)->name ?: '-' }}</div>
+                            <div class="col-md-3"><strong>Status:</strong> {{ ucfirst((string) $reconciliation->status) }}</div>
                         </div>
 
                         <div class="table-responsive">

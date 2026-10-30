@@ -30,13 +30,24 @@
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <label for="filter_accounting_status">Accounting Status</label>
-                                <select id="filter_accounting_status" class="form-control">
-                                    <option value="" {{ $defaultAccountingStatus === '' ? 'selected' : '' }}>All</option>
+                                <select id="filter_accounting_status" class="form-control select2">
+                                    <option value="" {{ $defaultAccountingStatus === '' ? 'selected' : '' }}>All Statuses</option>
                                     <option value="posted" {{ $defaultAccountingStatus === 'posted' ? 'selected' : '' }}>Posted</option>
                                     <option value="unposted" {{ $defaultAccountingStatus === 'unposted' ? 'selected' : '' }}>Unposted</option>
                                     <option value="reversed" {{ $defaultAccountingStatus === 'reversed' ? 'selected' : '' }}>Reversed</option>
                                 </select>
                             </div>
+                            @if(empty($isRestrictedToOwnOutlet) && isset($outlets) && $outlets->count() > 1)
+                                <div class="col-md-3">
+                                    <label for="filter_outlet_id">Branch / Outlet</label>
+                                    <select id="filter_outlet_id" class="form-control select2">
+                                        <option value="">All Outlets & Branches</option>
+                                        @foreach($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
                             <div class="col-md-3 d-flex align-items-end mt-2 mt-md-0">
                                 <button id="reset_filters" class="btn btn-dark w-100">Reset Filters</button>
                             </div>
@@ -59,17 +70,19 @@
         const defaultAccountingStatus = @json($defaultAccountingStatus);
         let table = $('#expense-voucher-table').DataTable();
 
-        $('#filter_accounting_status').on('change', function () {
+        $('#filter_accounting_status, #filter_outlet_id').on('change', function () {
             table.ajax.reload();
         });
 
         $('#reset_filters').on('click', function () {
-            $('#filter_accounting_status').val(defaultAccountingStatus);
+            $('#filter_accounting_status').val(defaultAccountingStatus).trigger('change');
+            $('#filter_outlet_id').val('').trigger('change');
             table.ajax.reload();
         });
 
         table.on('preXhr.dt', function (e, settings, data) {
             data.accounting_status = $('#filter_accounting_status').val();
+            data.outlet_id = $('#filter_outlet_id').val();
         });
     });
 </script>

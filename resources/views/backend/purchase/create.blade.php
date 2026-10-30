@@ -10,14 +10,17 @@
                 <div class="col-12">
                     <div class="card" style="margin-top: 5px;">
                         <div class="card-header with-border">
-                            <span class="card-title mobile-page-title" style="font-size:20px;">Create | Purchase Sale</span>
-                            <a href="{{route('purchases.index')}}" class="mobile-header-action" style="float:right">
-                                <button type="button" class="btn btn-dark modal_btn mobile-header-btn">
-                                    View Purchases Sale
-                                </button>
+                            <span class="card-title mobile-page-title" style="font-size:20px;">Create Purchase</span>
+                            <span class="badge bg-primary ms-2">Central Warehouse</span>
+                            <a href="{{route('purchases.index')}}" class="btn btn-modern-header mobile-header-action float-end" style="float:right">
+                                <i class="fas fa-list me-1 mr-1"></i> View Purchases
                             </a>
                             <hr>
                             <div class="card-body">
+                                <div class="alert alert-info py-2 mb-3" role="alert">
+                                    <i class="fas fa-warehouse me-1" aria-hidden="true"></i>
+                                    <strong>Receiving Location:</strong> All goods purchased are received and stocked directly into <strong>Central Warehouse</strong>.
+                                </div>
                                 {{-- backend error alerts --}}
                                 <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
                                     <button type="button" class="close h-100" data-dismiss="alert" aria-label="Close">
@@ -52,7 +55,7 @@
                                         </div>
 
                                         <div class="col-md-2 d-flex align-items-center mb-2 mb-md-0">
-                                            <input class="form-control" name="current_stock_qty" type="text" id="current_stock_qty" readonly style="background-color:#ddd" placeholder="Current Stock">
+                                            <input class="form-control" name="current_stock_qty" type="text" id="current_stock_qty" readonly style="background-color:#ddd" placeholder="Central Stock">
                                         </div>
 
                                         <div class="col-md-3 d-flex align-items-center justify-content-end mb-2 mb-md-0">
@@ -82,7 +85,7 @@
                                                             data-unit-name="{{ $product->unit->name ?? '' }}"
                                                             data-cost-price="{{ (float) ($product->cost_price ?? 0) }}"
                                                             data-selling-price="{{ (float) ($product->selling_price ?? 0) }}"
-                                                            data-qty="{{ (float) ($product->quantity ?? 0) }}"
+                                                            data-qty="{{ (float) ($product->quantityForOutlet($centralOutletId ?? null)) }}"
                                                             data-barcode="{{ $product->barcode ?? '' }}">
                                                             {{ $product->name }}
                                                         </option>
@@ -113,7 +116,9 @@
                                     </div>
                                     <div class="row mb-2">
                                         <div class="col-12 text-center">
-                                            <button type="button" class="btn btn-dark waves-effect waves-light fas fa-plus-circle addeventmore mobile-action-btn"> Add</button>
+                                            <button type="button" class="btn btn-modern-primary addeventmore mobile-action-btn">
+                                                <i class="fas fa-plus-circle me-1 mr-1"></i> Add Item
+                                            </button>
                                         </div>
                                     </div>
                                     {{-- <hr> --}}
@@ -208,10 +213,13 @@
                                             <textarea name="description" class="form-control" id="description" placeholder="Write Description Here"></textarea>
                                         </div>
                                     </div>
-                                    <div class="form-group mt-4">
-                                        <center>
-                                            <button type="submit" class="btn btn-success storeButton mobile-submit-btn" id="storeButton">Submit Purchase</button>
-                                        </center>
+                                    <div class="form-group mt-4 pt-3 border-top text-center">
+                                        <a href="{{ route('purchases.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary storeButton mobile-submit-btn" id="storeButton">
+                                            <i class="fas fa-check-circle me-1 mr-1"></i> Submit Purchase
+                                        </button>
                                     </div>
                                 </form>
                             </div>

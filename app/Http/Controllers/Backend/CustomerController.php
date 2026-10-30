@@ -7,6 +7,7 @@ use App\DataTables\Admin\Report\Sales\CreditSalesDataTable;
 use App\DataTables\Admin\Settings\CustomerDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\PaymentDetail;
 use App\Services\Accounting\AccountingIntegrationService;
@@ -133,6 +134,13 @@ class CustomerController extends Controller
                 ]);
             }
 
+            if (((int) $customer->id === 1 || strtolower((string) $customer->name) === 'cash_sales') && strtolower(trim((string) $request->name)) !== 'cash_sales') {
+                return response()->json([
+                    'status' => 422,
+                    'message' => 'The default system customer name must remain "cash_sales" to preserve POS walk-in sales functionality.',
+                ], 422);
+            }
+
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:customers,name,' . $id,
                 'mobile_no' => 'required|string|max:15|unique:customers,mobile_no,' . $id,
@@ -193,6 +201,14 @@ class CustomerController extends Controller
                 return redirect()->route('customers.index')->with(['message' => $message, 'alert-type' => 'error']);
             }
 
+            if ((int) $customer->id === 1 || strtolower((string) $customer->name) === 'cash_sales') {
+                $message = 'The system default cash sales customer cannot be deleted.';
+                if (request()->expectsJson() || request()->ajax()) {
+                    return response()->json(['status' => 422, 'message' => $message], 422);
+                }
+                return redirect()->route('customers.index')->with(['message' => $message, 'alert-type' => 'error']);
+            }
+
             if ($customer->payments()->count() > 0) {
                 $message = 'Cannot delete customer with associated Sale or payment records.';
                 if (request()->expectsJson() || request()->ajax()) {
@@ -240,22 +256,45 @@ class CustomerController extends Controller
 
 
     public function CreditCustomer(CreditSalesDataTable $dataTable){
-        $payments = Payment::with(['customer:id,name', 'sale:id,sale_no'])
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        $paymentsQuery = Payment::with(['customer:id,name', 'sale:id,sale_no,outlet_id', 'sale.outlet:id,name,is_central'])
             ->visibleToSalesViewer()
-            ->where('due_amount', '>', 0)
-            ->get();
+            ->where('due_amount', '>', 0);
+
+        if ($assignedOutletId) {
+            $paymentsQuery->whereHas('sale', function ($q) use ($assignedOutletId) {
+                $q->where('outlet_id', $assignedOutletId);
+            });
+        }
+
+        $payments = $paymentsQuery->get();
 
         $sales = $payments->pluck('sale')->filter()->unique('id')->sortBy('sale_no')->values();
         $customers = $payments->pluck('customer')->filter()->unique('id')->sortBy('name')->values();
 
-        return $dataTable->render('backend.customer.customer_credit', compact('sales', 'customers'));
+        return $dataTable->render('backend.customer.customer_credit', compact('sales', 'customers', 'outlets', 'assignedOutletId'));
     } // End Method
 
     public function CustomerEditSale($sale_id){
-        $payment = Payment::with(['customer', 'sale.sale_details.product', 'sale.sale_details.category'])
+        $payment = Payment::with(['customer', 'sale.sale_details.product', 'sale.sale_details.category', 'sale.outlet'])
             ->visibleToSalesViewer()
             ->where('sale_id',$sale_id)
             ->firstOrFail();
+
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+        if ($assignedOutletId && ! $isSuperAdmin && $payment->sale && (int) $payment->sale->outlet_id !== (int) $assignedOutletId) {
+            return redirect()->route('credit.customer')->with([
+                'message' => 'You do not have access to collect payments for sales from other branches.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         return view('backend.customer.edit_customer_sale',compact('payment'));
     }// End Method
 
@@ -269,7 +308,19 @@ class CustomerController extends Controller
             'paid_amount' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
-        $payment = Payment::visibleToSalesViewer()->where('sale_id',$sale_id)->firstOrFail();
+        $payment = Payment::with('sale')->visibleToSalesViewer()->where('sale_id',$sale_id)->firstOrFail();
+
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+        if ($assignedOutletId && ! $isSuperAdmin && $payment->sale && (int) $payment->sale->outlet_id !== (int) $assignedOutletId) {
+            return redirect()->route('credit.customer')->with([
+                'message' => 'You do not have access to collect payments for sales from other branches.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         $currentDue = round((float) $payment->due_amount, 2);
 
         if ($currentDue <= 0) {
@@ -342,15 +393,26 @@ class CustomerController extends Controller
     }// End Method
 
     public function PaidCustomer(CashSalesDataTable $dataTable){
-        $payments = Payment::with(['customer:id,name', 'sale:id,sale_no'])
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        $paymentsQuery = Payment::with(['customer:id,name', 'sale:id,sale_no,outlet_id', 'sale.outlet:id,name,is_central'])
             ->visibleToSalesViewer()
-            ->where('due_amount', '<=', 0)
-            ->get();
+            ->where('due_amount', '<=', 0);
+
+        if ($assignedOutletId) {
+            $paymentsQuery->whereHas('sale', function ($q) use ($assignedOutletId) {
+                $q->where('outlet_id', $assignedOutletId);
+            });
+        }
+
+        $payments = $paymentsQuery->get();
 
         $sales = $payments->pluck('sale')->filter()->unique('id')->sortBy('sale_no')->values();
         $customers = $payments->pluck('customer')->filter()->unique('id')->sortBy('name')->values();
 
-        return $dataTable->render('backend.customer.customer_paid', compact('sales', 'customers'));
+        return $dataTable->render('backend.customer.customer_paid', compact('sales', 'customers', 'outlets', 'assignedOutletId'));
     }// End Method
 
 }

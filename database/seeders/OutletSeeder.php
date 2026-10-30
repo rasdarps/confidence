@@ -39,3 +39,4 @@ class OutletSeeder extends Seeder
         );
     }
 }
+

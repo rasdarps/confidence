@@ -18,8 +18,16 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                          <a href="{{ route('suppliers.create') }}" class="btn btn-dark" style="float:right;"><i class="fas fa-plus-circle"></i> Add Supplier </a> <br>  <br>               
+                          @if(auth()->check() && auth()->user()->isCentral())
+                              <a href="{{ route('suppliers.create') }}" class="btn btn-dark" style="float:right;"><i class="fas fa-plus-circle"></i> Add Supplier </a> <br> <br>
+                          @endif
                           <h4 class="card-title">All Suppliers</h4>
+
+                          <div class="alert alert-info py-2 mb-3" role="alert">
+                              <i class="fas fa-truck me-1" aria-hidden="true"></i>
+                              <strong>Central Procurement:</strong> External vendors deliver goods directly to the Central Warehouse (HQ) for subsequent distribution to retail branches.
+                          </div>
+
                             <div class="table-responsive">
                                 {!! $dataTable->table() !!}
                             </div>

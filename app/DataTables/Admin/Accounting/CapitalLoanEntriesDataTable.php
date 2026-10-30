@@ -19,21 +19,37 @@ class CapitalLoanEntriesDataTable extends DataTable
             ->editColumn('transaction_date', function ($row) {
                 return $row->transaction_date ? Carbon::parse($row->transaction_date)->format('Y-m-d') : '';
             })
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = optional(optional($row->journal)->outlet);
+                if (!$outlet || !$outlet->id) {
+                    return '<span class="text-muted">-</span>';
+                }
+
+                $badge = $outlet->is_central
+                    ? '<span class="badge bg-info text-dark ms-1">Central</span>'
+                    : '<span class="badge bg-secondary ms-1">Retail</span>';
+
+                return e((string) $outlet->name) . $badge;
+            })
             ->addColumn('entry_type_label', function ($row) {
-                return match ((string) $row->entry_type) {
+                $type = (string) $row->entry_type;
+                $label = match ($type) {
                     'owner_capital' => 'Owner Capital',
                     'bank_loan' => 'Bank Loan',
                     'individual_loan' => 'Individual Loan',
-                    default => ucfirst(str_replace('_', ' ', (string) $row->entry_type)),
+                    default => ucfirst(str_replace('_', ' ', $type)),
                 };
+                $badge = $type === 'owner_capital' ? 'bg-info text-dark' : 'bg-warning text-dark';
+
+                return '<span class="badge ' . $badge . '">' . e($label) . '</span>';
             })
             ->addColumn('receive_into_label', function ($row) {
                 return $row->receive_into === 'bank'
                     ? (optional($row->bankAccount)->name ?? 'Bank')
-                    : 'Cash On Hand';
+                    : 'Cash On Hand (1000)';
             })
             ->editColumn('amount', function ($row) {
-                return number_format((float) $row->amount, 2);
+                return '<span class="fw-semibold">' . number_format((float) $row->amount, 2) . '</span>';
             })
             ->addColumn('journal_no', function ($row) {
                 return optional($row->journal)->journal_no ?: '-';
@@ -55,10 +71,13 @@ class CapitalLoanEntriesDataTable extends DataTable
                 $canEdit = Gate::allows('capital-loan-edit');
                 $canDelete = Gate::allows('capital-loan-delete');
 
+                $outletId = (int) (optional($row->journal)->outlet_id ?? 0);
+
                 $actions = '';
                 if ($canEdit) {
-                    $actions .= '<button type="button" class="btn btn-sm btn-primary js-edit-capital-loan text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;"'
+                    $actions .= '<button type="button" class="btn-action-edit table-edit-btn js-edit-capital-loan" title="Edit Funding Entry"'
                         . ' data-id="' . (int) $row->id . '"'
+                        . ' data-outlet_id="' . $outletId . '"'
                         . ' data-transaction_date="' . e($row->transaction_date ? Carbon::parse($row->transaction_date)->format('Y-m-d') : '') . '"'
                         . ' data-entry_type="' . e((string) $row->entry_type) . '"'
                         . ' data-receive_into="' . e((string) $row->receive_into) . '"'
@@ -71,19 +90,19 @@ class CapitalLoanEntriesDataTable extends DataTable
                 }
 
                 if ($canDelete) {
-                    $actions .= '<button type="button" class="btn btn-sm btn-danger js-delete-capital-loan text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;" data-id="' . (int) $row->id . '"><i class="fa fa-trash"></i></button>';
+                    $actions .= '<button type="button" class="btn-action-delete delete-confirm-btn btn-delete js-delete-capital-loan" title="Delete Funding Entry" data-id="' . (int) $row->id . '"><i class="fa fa-trash"></i></button>';
                 }
 
-                return $actions ? '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons">' . $actions . '</div>' : '-';
+                return $actions ? '<div class="action-buttons">' . $actions . '</div>' : '-';
             })
-            ->rawColumns(['accounting_status_badge', 'actions'])
+            ->rawColumns(['outlet_name', 'entry_type_label', 'amount', 'accounting_status_badge', 'actions'])
             ->setRowId('id');
     }
 
     public function query(CapitalLoanEntry $model): QueryBuilder
     {
         return $model->newQuery()
-            ->with(['bankAccount', 'journal'])
+            ->with(['bankAccount', 'journal.outlet'])
             ->orderByDesc('transaction_date')
             ->orderByDesc('id');
     }
@@ -106,12 +125,13 @@ class CapitalLoanEntriesDataTable extends DataTable
     {
         return [
             Column::make('transaction_date')->title('Date'),
-            Column::make('entry_type_label')->title('Type'),
-            Column::make('receive_into_label')->title('Received Into'),
+            Column::computed('outlet_name')->title('Outlet')->searchable(false),
+            Column::make('entry_type_label')->title('Type')->searchable(false),
+            Column::make('receive_into_label')->title('Received Into')->searchable(false),
             Column::make('lender_name')->title('Lender/Source'),
-            Column::make('amount')->title('Amount'),
+            Column::make('amount')->title('Amount')->addClass('text-end'),
             Column::make('reference_no')->title('Reference'),
-            Column::make('journal_no')->title('Journal No'),
+            Column::make('journal_no')->title('Journal No')->searchable(false),
             Column::make('accounting_status_badge')->title('Posting Status')->searchable(false),
             Column::computed('actions')->title('Actions')->exportable(false)->printable(false)->searchable(false)->addClass('text-center'),
         ];

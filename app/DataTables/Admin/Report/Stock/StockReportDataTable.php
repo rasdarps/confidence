@@ -5,6 +5,7 @@ namespace App\DataTables\Admin\Report\Stock;
 use App\Models\StockLedger;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Gate;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
 use Yajra\DataTables\Html\Column;
@@ -24,8 +25,28 @@ class StockReportDataTable extends DataTable
             ->addColumn('category_name', function ($row) {
                 return $row->product && $row->product->category ? $row->product->category->name : '';
             })
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = $row->outlet;
+                $name = $outlet->name ?? 'Central Warehouse';
+                $isCentral = (bool) ($outlet->is_central ?? false);
+                if ($isCentral) {
+                    return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($name) . ' <small>(Central)</small></span>';
+                }
+                return '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="ri-store-2-line me-1"></i>' . e($name) . '</span>';
+            })
             ->addColumn('created_by_name', function ($row) {
-                return $row->createdBy->name ?? '';
+                if (!Gate::allows('user-audit-view')) {
+                    return '';
+                }
+                $viewer = auth()->user();
+                $viewerIsSuperAdmin = $viewer && strtolower((string) ($viewer->user_type ?? '')) === 'super admin';
+                $createdByUser = $row->createdBy;
+
+                if (!$viewerIsSuperAdmin && $createdByUser && strtolower((string) ($createdByUser->user_type ?? '')) === 'super admin') {
+                    return '';
+                }
+
+                return $createdByUser->name ?? '';
             })
             ->editColumn('movement_type', function ($row) {
                 return ucwords(str_replace('_', ' ', (string) $row->movement_type));
@@ -48,6 +69,7 @@ class StockReportDataTable extends DataTable
             ->editColumn('balance_after', function ($row) {
                 return number_format((float) $row->balance_after, 2);
             })
+            ->rawColumns(['outlet_name'])
             ->setRowId('id');
     }
 
@@ -56,10 +78,19 @@ class StockReportDataTable extends DataTable
      */
     public function query(StockLedger $model): QueryBuilder
     {
+        $user = auth()->user();
+        $outletId = ($user && $user->outlet_id)
+            ? (int) $user->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
         $query = $model->newQuery()
-            ->with(['product.category', 'createdBy'])
+            ->with(['product.category', 'outlet', 'createdBy'])
             ->orderBy('movement_at', 'desc')
             ->orderBy('id', 'desc');
+
+        if ($outletId) {
+            $query->where('outlet_id', $outletId);
+        }
 
         if ($productId = $this->request()->get('product_id')) {
             $query->where('product_id', $productId);
@@ -96,7 +127,7 @@ class StockReportDataTable extends DataTable
             ->setTableId('stockreport-table')
             ->columns($this->getColumns())
             ->minifiedAjax(request()->getRequestUri())
-            ->orderBy(1, 'desc')
+            ->orderBy(0, 'desc')
             ->selectStyleSingle()
             ->footerCallback('function (row, data, start, end, display) {
                 var api = this.api();
@@ -113,15 +144,15 @@ class StockReportDataTable extends DataTable
                     return 0;
                 };
 
-                var qtyInTotal = api.column(4, { page: "current" }).data().reduce(function (a, b) {
+                var qtyInTotal = api.column(5, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
-                var qtyOutTotal = api.column(5, { page: "current" }).data().reduce(function (a, b) {
+                var qtyOutTotal = api.column(6, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
-                var deltaTotal = api.column(6, { page: "current" }).data().reduce(function (a, b) {
+                var deltaTotal = api.column(7, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
@@ -132,10 +163,10 @@ class StockReportDataTable extends DataTable
                     });
                 };
 
-                $(api.column(3).footer()).html("Page Totals");
-                $(api.column(4).footer()).html(formatValue(qtyInTotal));
-                $(api.column(5).footer()).html(formatValue(qtyOutTotal));
-                $(api.column(6).footer()).html(formatValue(deltaTotal));
+                $(api.column(4).footer()).html("Page Totals");
+                $(api.column(5).footer()).html(formatValue(qtyInTotal));
+                $(api.column(6).footer()).html(formatValue(qtyOutTotal));
+                $(api.column(7).footer()).html(formatValue(deltaTotal));
             }')
             ->parameters([
                 'dom' => "<'row'l>Bfrtip",
@@ -151,10 +182,11 @@ class StockReportDataTable extends DataTable
 
     public function getColumns(): array
     {
-        return [
+        $columns = [
             Column::make('movement_at')->title('Date'),
-            Column::make('product_name')->title('Product'),
-            Column::make('category_name')->title('Category'),
+            Column::make('product_name')->title('Product')->searchable(false)->orderable(false),
+            Column::make('category_name')->title('Category')->searchable(false)->orderable(false),
+            Column::make('outlet_name')->title('Outlet / Branch')->searchable(false)->orderable(false),
             Column::make('movement_type')->title('Type'),
             Column::make('qty_in')->title('In'),
             Column::make('qty_out')->title('Out'),
@@ -162,15 +194,19 @@ class StockReportDataTable extends DataTable
             Column::make('balance_before')->title('Opening'),
             Column::make('balance_after')->title('Closing'),
             Column::make('reference_type')->title('Reference Type'),
-            // Column::make('reference_id')->title('Reference ID'),
-            // Column::make('created_by_name')->title('Created By'),
             Column::make('reason')->title('Reason'),
             Column::make('notes')->title('Notes'),
         ];
+
+        if (Gate::allows('user-audit-view')) {
+            $columns[] = Column::make('created_by_name')->title('Created By')->searchable(false)->orderable(false);
+        }
+
+        return $columns;
     }
 
     protected function filename(): string
     {
-        return 'StockLedgerReport_' . date('YmdHis');
+        return 'StockLedger_' . date('YmdHis');
     }
 }

@@ -44,3 +44,4 @@ class OutletStock extends Model
             ->where('quantity', '>', 0);
     }
 }
+

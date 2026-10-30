@@ -27,6 +27,10 @@ use Illuminate\Support\Facades\Crypt;
 						<hr>
 
 						<div class="card-body">
+							<div class="alert alert-info py-2 mb-3" role="alert">
+								<i class="fas fa-building me-1" aria-hidden="true"></i>
+								<strong>Corporate Legal Entity:</strong> Updating these details will reflect on thermal receipts, financial statements, and official tax documents across all branch stations and Central Warehouse.
+							</div>
 
 							<form action="{{ route('companies.update', Crypt::encrypt($company->id)) }}" method="POST" id="myForm" enctype="multipart/form-data" novalidate>
 								@csrf

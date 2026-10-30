@@ -21,6 +21,16 @@ class ProductDataTable extends DataTable
      */
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
+        $user = auth()->user();
+        $requestedOutletId = $this->request()->get('outlet_id');
+        if ($user && $user->outlet_id) {
+            $effectiveOutletId = (int) $user->outlet_id;
+        } elseif (!empty($requestedOutletId) && $requestedOutletId !== 'all') {
+            $effectiveOutletId = (int) $requestedOutletId;
+        } else {
+            $effectiveOutletId = null;
+        }
+
         return (new EloquentDataTable($query))
          ->addColumn('checkbox', function($row) {
             $hasBarcode = !empty(trim((string) $row->barcode));
@@ -56,63 +66,80 @@ class ProductDataTable extends DataTable
         ->editColumn('selling_price', function($row) {
             return '<span class="font-weight-bold">₵' . number_format((float) ($row->selling_price ?? 0), 2) . '</span>';
         })
-        ->addColumn('stock', function($row) {
-            $status = 'in_stock';
-            if ((float) $row->quantity <= 0) {
-                $status = 'out_of_stock';
-            } elseif ((float) $row->quantity <= (float) $row->stock_level) {
-                $status = 'low_stock';
+        ->addColumn('stock', function($row) use ($effectiveOutletId, $user) {
+            if ($effectiveOutletId) {
+                $qty = (float) $row->quantityForOutlet($effectiveOutletId);
+                $stockRec = $row->relationLoaded('outletStocks') 
+                    ? $row->outletStocks->firstWhere('outlet_id', $effectiveOutletId)
+                    : $row->outletStocks()->where('outlet_id', $effectiveOutletId)->first();
+                $threshold = (float) ($stockRec ? $stockRec->stock_level : 1);
+            } else {
+                $qty = (float) $row->quantity;
+                $threshold = (float) $row->stock_level;
             }
 
-            $badgeClass = $status == 'in_stock' ? 'success' : ($status == 'low_stock' ? 'warning' : 'danger');
-            $statusText = $status == 'in_stock' ? 'In Stock' : ($status == 'low_stock' ? 'Low Stock' : 'Out of Stock');
+            if ($qty <= 0) {
+                $badgeClass = 'danger';
+                $statusText = 'Out of Stock';
+            } elseif ($qty <= $threshold) {
+                $badgeClass = 'warning';
+                $statusText = 'Low Stock';
+            } else {
+                $badgeClass = 'success';
+                $statusText = 'In Stock';
+            }
             
-            return '
-                <div>
-                    <span class="badge badge-' . $badgeClass . '">' . $statusText . '</span>
-                    <br>
-                    <small>' . number_format($row->quantity) . ' units</small>
-                </div>
-            ';
+            $html = '<div><span class="badge badge-' . $badgeClass . '">' . $statusText . '</span><br>';
+            $html .= '<strong class="text-dark">' . number_format($qty, 0) . ' units</strong>';
+
+            if ($effectiveOutletId && $user && $user->isCentral()) {
+                $html .= '<br><span class="text-muted" style="font-size:10px;">Total Enterprise: ' . number_format($row->quantity, 0) . '</span>';
+            } elseif (!$effectiveOutletId) {
+                $html .= '<br><span class="badge bg-light text-muted border" style="font-size:9px;">Enterprise Total</span>';
+            }
+
+            $html .= '</div>';
+            return $html;
         })
-        ->addColumn('actions', function($row) {
+        ->addColumn('actions', function($row) use ($user) {
             $viewUrl = route('products.show', $row->id);
             $encryptedId = Crypt::encrypt($row->id);
             $editUrl = route('products.edit', $encryptedId);
 
             $buttons = [];
+            $isCentral = $user ? $user->isCentral() : false;
 
             if (Gate::allows('product-list')) {
                 $buttons[] = '
-                    <button type="button" class="btn btn-sm btn-info view-product text-nowrap"
-                            style="display:inline-flex;align-items:center;gap:6px;width:auto;"
+                    <button type="button" class="btn-action-view view-product text-nowrap"
                             data-id="' . $row->id . '"
-                            data-name="' . e($row->name) . '">
+                            data-name="' . e($row->name) . '"
+                            title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>';
             }
 
-            if (Gate::allows('product-edit')) {
+            if (Gate::allows('product-edit') && $isCentral) {
                 $buttons[] = '
-                    <a href="' . $editUrl . '" class="btn btn-sm btn-primary text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;">
+                    <a href="' . $editUrl . '" class="btn-action-edit table-edit-btn text-nowrap"
+                       title="Edit Product">
                         <i class="fas fa-edit"></i>
                     </a>';
             }
 
-            if (Gate::allows('product-delete')) {
+            if (Gate::allows('product-delete') && $isCentral) {
                 $buttons[] = '
-                    <button type="button" class="btn btn-sm btn-danger delete-product text-nowrap"
-                            style="display:inline-flex;align-items:center;gap:6px;width:auto;"
-                            data-id="' . e($encryptedId) . '" data-name="' . e($row->name) . '">
-                        <i class="fas fa-trash"></i>
+                    <button type="button" class="btn-action-delete delete-product delete-confirm-btn btn-delete text-nowrap"
+                            data-id="' . e($encryptedId) . '" data-name="' . e($row->name) . '" title="Delete Product">
+                        <i class="fas fa-trash-alt"></i>
                     </button>';
             }
 
             if (empty($buttons)) {
-                return '<span class="text-muted">No actions</span>';
+                return '<span class="text-muted small">No actions</span>';
             }
 
-            return '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons" role="group">' . implode('', $buttons) . '</div>';
+            return '<div class="d-inline-flex align-items-center flex-nowrap gap-1 action-buttons" role="group">' . implode('', $buttons) . '</div>';
         })
         ->editColumn('created_at', function($row) {
             return Carbon::parse($row->created_at)->format('d M, Y');
@@ -129,35 +156,41 @@ class ProductDataTable extends DataTable
      */
     public function query(Product $model): QueryBuilder
     {
-
         $category_id = $this->request()->get('category_id');
         $stock_filter = $this->request()->get('stock_filter');
+        $requestedOutletId = $this->request()->get('outlet_id');
+        $user = auth()->user();
 
-        $query = $model->newQuery()
-        ->with(['category', 'unit'])
-        ->orderBy('created_at', 'desc');
-    
-    // Filter by category
-    if ($this->request()->filled('category_id')) {
-        
-        $query->where('category_id', $category_id);
-    }
-    
-    // Filter by stock status
-    if ($stock_filter) {
-        if ($stock_filter == 'in_stock') {
-            $query->where('quantity', '>', 0);
-        } elseif ($stock_filter == 'low_stock') {
-            $query->where('quantity', '>', 0)
-                  ->whereColumn('quantity', '<=', 'stock_level');
-        } elseif ($stock_filter == 'out_of_stock') {
-            $query->where('quantity', '<=', 0);
+        if ($user && $user->outlet_id) {
+            $effectiveOutletId = (int) $user->outlet_id;
+        } elseif (!empty($requestedOutletId) && $requestedOutletId !== 'all') {
+            $effectiveOutletId = (int) $requestedOutletId;
+        } else {
+            $effectiveOutletId = null;
         }
 
-    }
+        $query = $model->newQuery()
+            ->with(['category', 'unit', 'outletStocks.outlet'])
+            ->orderBy('created_at', 'desc');
+    
+        // Filter by category
+        if ($this->request()->filled('category_id')) {
+            $query->where('category_id', $category_id);
+        }
+        
+        // Filter by stock status via outletStocks scopes
+        if ($stock_filter) {
+            if ($stock_filter == 'in_stock') {
+                $query->inStock($effectiveOutletId);
+            } elseif ($stock_filter == 'low_stock') {
+                $query->lowStock($effectiveOutletId);
+            } elseif ($stock_filter == 'out_of_stock') {
+                $query->outOfStock($effectiveOutletId);
+            }
+        }
 
-    return $query;
-}
+        return $query;
+    }
 
     /**
      * Optional method if you want to use the html builder.
@@ -168,11 +201,10 @@ class ProductDataTable extends DataTable
                     ->setTableId('product-table')
                     ->columns($this->getColumns())
                     ->minifiedAjax(request()->getRequestUri())
-                    //->dom('Bfrtip')
                     ->orderBy(7, 'desc')
                     ->selectStyleSingle()
                     ->parameters([
-                        'dom'          => "<'row'l>Bfrtip",  //row counter button
+                        'dom'          => "<'row'l>Bfrtip",
                         'buttons'      => ['colvis', 'excel', 'csv', 'reset', 'reload'],
                         'language'     => [
                                                 'search' => 'Search Products:',

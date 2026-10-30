@@ -225,7 +225,7 @@
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                 }));
-                const filtered = ['#filter_invoice_id', '#filter_customer_id', '#filter_from_date', '#filter_to_date', '#filter_payment_status', '#filter_created_by']
+                const filtered = ['#filter_invoice_id', '#filter_customer_id', '#filter_outlet_id', '#filter_from_date', '#filter_to_date', '#filter_payment_status', '#filter_created_by']
                     .some(selector => Boolean($(selector).val()));
                 const searched = Boolean(table.search().trim());
                 $totalScope.text((filtered || searched ? 'Filtered total' : 'All time') + (ownSales ? ' - Your sales' : ''));
@@ -260,6 +260,7 @@
             $('#reset_filters').on('click', function() {
                 $('#filter_invoice_id').val(null).trigger('change');
                 $('#filter_customer_id').val(null).trigger('change');
+                $('#filter_outlet_id').val('').trigger('change');
                 $('#filter_from_date').val('');
                 $('#filter_to_date').val('');
                 $('#filter_payment_status').val('');
@@ -273,6 +274,7 @@
                 $totalAmount.text('Loading...');
                 data.sale_id = $('#filter_invoice_id').val();
                 data.customer_id = $('#filter_customer_id').val();
+                data.outlet_id = $('#filter_outlet_id').val();
                 data.from_date = $('#filter_from_date').val();
                 data.to_date = $('#filter_to_date').val();
                 data.payment_status = $('#filter_payment_status').val();

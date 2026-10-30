@@ -14,16 +14,23 @@ class ExpenseCategory extends Model
 
     protected $fillable = [
         'name',
+        'accounting_account_id',
         'created_by',
         'updated_by',
         'deleted_by',
     ];
 
     protected $casts = [
+        'accounting_account_id' => 'integer',
         'created_by' => 'integer',
         'updated_by' => 'integer',
         'deleted_by' => 'integer',
     ];
+
+    public function account()
+    {
+        return $this->belongsTo(AccountingAccount::class, 'accounting_account_id');
+    }
 
     public function createdBy()
     {

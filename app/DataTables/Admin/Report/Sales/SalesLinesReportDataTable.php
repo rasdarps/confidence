@@ -18,6 +18,13 @@ class SalesLinesReportDataTable extends DataTable
             ->editColumn('sale_date', function ($row) {
                 return $row->sale_date ? Carbon::parse($row->sale_date)->format('d-m-Y') : 'N/A';
             })
+            ->addColumn('outlet_name', function ($row) {
+                if (! $row->outlet_name) {
+                    return '<span class="badge bg-secondary">N/A</span>';
+                }
+                $badgeClass = $row->outlet_is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($row->outlet_name) . '</span>';
+            })
             ->editColumn('selling_qty', function ($row) {
                 return number_format((float) $row->selling_qty, 2);
             })
@@ -27,13 +34,20 @@ class SalesLinesReportDataTable extends DataTable
             ->editColumn('selling_price', function ($row) {
                 return number_format((float) $row->selling_price, 2);
             })
+            ->rawColumns(['outlet_name'])
             ->setRowId('id');
     }
 
     public function query(SaleDetail $model): QueryBuilder
     {
+        $user = auth()->user();
+        $outletId = ($user && $user->outlet_id)
+            ? (int) $user->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
         $query = $model->newQuery()
             ->leftJoin('sales', 'sale_details.sale_id', '=', 'sales.id')
+            ->leftJoin('outlets', 'outlets.id', '=', 'sales.outlet_id')
             ->leftJoin('payments', 'payments.sale_id', '=', 'sales.id')
             ->leftJoin('customers', 'customers.id', '=', 'payments.customer_id')
             ->leftJoin('products', 'products.id', '=', 'sale_details.product_id')
@@ -48,12 +62,18 @@ class SalesLinesReportDataTable extends DataTable
                 'sale_details.selling_price',
                 'sales.sale_no',
                 'sales.date as sale_date',
+                'outlets.name as outlet_name',
+                'outlets.is_central as outlet_is_central',
                 'customers.name as customer_name',
                 'products.name as product_name',
                 'categories.name as category_name',
             ])
             ->orderByDesc('sales.date')
             ->orderByDesc('sale_details.id');
+
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
 
         if ($saleId = $this->request()->get('sale_id')) {
             $query->where('sale_details.sale_id', $saleId);
@@ -141,11 +161,12 @@ class SalesLinesReportDataTable extends DataTable
     public function getColumns(): array
     {
         return [
-            Column::make('sale_date')->title('Date'),
-            Column::make('sale_no')->title('Sale No'),
-            Column::make('customer_name')->title('Customer'),
-            Column::make('category_name')->title('Category'),
-            Column::make('product_name')->title('Product'),
+            Column::make('sale_date')->title('Date')->searchable(false),
+            Column::make('sale_no')->name('sales.sale_no')->title('Sale No'),
+            Column::make('outlet_name')->name('outlets.name')->title('Outlet / Branch'),
+            Column::make('customer_name')->name('customers.name')->title('Customer'),
+            Column::make('category_name')->name('categories.name')->title('Category'),
+            Column::make('product_name')->name('products.name')->title('Product'),
             Column::make('selling_qty')->title('Qty')->searchable(false),
             Column::make('unit_selling_price')->title('Unit Price (Gh¢)')->searchable(false),
             Column::make('selling_price')->title('Line Amount (Gh¢)')->searchable(false),

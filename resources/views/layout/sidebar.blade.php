@@ -611,12 +611,14 @@
                                 @endcan
 
                                 @can('settings-manage')
+                                @if(auth()->user()->isCentral())
                                 <li>
                                     <a href="{{ route('settings.index') }}" class="waves-effect">
                                         <i class="fa fa-sliders-h"></i>
                                         <span>Settings</span>
                                     </a>
                                 </li>
+                                @endif
                                 @endcan
                             </ul><!--drop ul ends-->    
                         </li><!--cover ends--> 

@@ -29,9 +29,10 @@ class CompanyController extends Controller
      */
     public function index(CompanyDataTable $dataTable)
     {
-        //
-        return $dataTable->render('backend.company.index');
+        $company = Company::first();
+        $outletsCount = \App\Models\Outlet::count();
 
+        return $dataTable->render('backend.company.index', compact('company', 'outletsCount'));
     }
 
     /**
@@ -39,10 +40,17 @@ class CompanyController extends Controller
      *
      * @return \Illuminate\Http\Response
      */
-    public function create(CompanyDataTable $dataTable)
+    public function create()
     {
-        //
-        return $dataTable->render('backend.company.create');
+        if (Company::exists()) {
+            $existingCompany = Company::first();
+            return redirect()->route('companies.edit', Crypt::encrypt($existingCompany->id))->with([
+                'message' => 'A primary corporate company profile already exists. You can update its details below.',
+                'alert-type' => 'info',
+            ]);
+        }
+
+        return view('backend.company.create');
     }
 
     /**
@@ -53,8 +61,13 @@ class CompanyController extends Controller
      */
     public function store(Request $request)
     {
-        //
-         $validatedData = $request->validate([
+        if (Company::exists()) {
+            throw ValidationException::withMessages([
+                'name' => ['A corporate company profile already exists. Please update the existing profile instead.'],
+            ]);
+        }
+
+        $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('companies', 'name')->whereNull('deleted_at')],
             'address' => 'required|string|max:255',
             'phone' => ['required', 'numeric', 'digits:10', Rule::unique('companies', 'phone')->whereNull('deleted_at')],
@@ -220,6 +233,20 @@ class CompanyController extends Controller
     public function destroy($id)
     {
         try {
+            if (Company::count() <= 1) {
+                $message = 'The primary corporate profile cannot be deleted as it is required for receipt printing, tax compliance, and multi-outlet operations.';
+                if (request()->expectsJson() || request()->ajax()) {
+                    return response()->json([
+                        'status' => 422,
+                        'message' => $message,
+                    ], 422);
+                }
+                return redirect()->route('companies.index')->with([
+                    'message' => $message,
+                    'alert-type' => 'error',
+                ]);
+            }
+
             $companyId = Crypt::decrypt($id);
             $company = Company::find($companyId);
 

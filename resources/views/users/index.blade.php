@@ -21,9 +21,11 @@
                 <div class="card">
                     <div class="card-body">
 
-                        <a href="{{ route('users.create') }}" class="btn btn-success" style="float:right;">
-                            <i class="fas fa-plus-circle"></i> Add User
-                        </a>
+                        @if(auth()->check() && auth()->user()->isCentral() && \Illuminate\Support\Facades\Gate::allows('user-create'))
+                            <a href="{{ route('users.create') }}" class="btn btn-modern-primary" style="float:right;">
+                                <i class="fas fa-plus-circle me-1 mr-1"></i> Add User
+                            </a>
+                        @endif
                         <br><br>
 
                         <h4 class="card-title">User All Data</h4>

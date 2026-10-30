@@ -30,10 +30,24 @@ class UnitController extends Controller
 
     
     public function create(){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('units.index')->with([
+                'message' => 'Only Central Headquarters staff can create measurement units. Product catalog units are managed centrally.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         return view('backend.unit.create');
     } // End Method 
 
     public function store(Request $request){
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can create measurement units.',
+            ], 403);
+        }
+
         $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('units', 'name')->whereNull('deleted_at')],
         ], [
@@ -87,6 +101,13 @@ class UnitController extends Controller
     }
 
     public function edit(string $encryptedId){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('units.index')->with([
+                'message' => 'Only Central Headquarters staff can modify measurement units. Product catalog units are managed centrally.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $unit = Unit::find($id);
@@ -102,6 +123,13 @@ class UnitController extends Controller
     }// End Method 
 
     public function update(Request $request, string $encryptedId){ 
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can update measurement units.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $unit = Unit::find($id);
@@ -149,6 +177,14 @@ class UnitController extends Controller
     }// End Method 
 
     public function destroy(string $encryptedId){
+        if (!Auth::user()->isCentral()) {
+            $message = 'Unauthorized. Only Central Headquarters staff can delete measurement units.';
+            if (request()->expectsJson() || request()->ajax()) {
+                return response()->json(['status' => 403, 'message' => $message], 403);
+            }
+            return redirect()->route('units.index')->with(['message' => $message, 'alert-type' => 'error']);
+        }
+
         try {
             $unit = Unit::findOrFail(Crypt::decrypt($encryptedId));
 

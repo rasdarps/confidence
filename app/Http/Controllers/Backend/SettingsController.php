@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Backend;
 use App\Http\Controllers\Controller;
 use App\Models\AppSetting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +19,13 @@ class SettingsController extends Controller
 
     public function index()
     {
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('dashboard')->with([
+                'message' => 'Unauthorized. Only Central Headquarters staff can view or manage global system settings.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         return view('backend.settings.index', [
             'sessionLifetimeMinutes' => $this->getIntSetting('session_lifetime_minutes', (int) config('session.lifetime', 120)),
             'sessionExpireOnClose' => $this->getBoolSetting('session_expire_on_close', (bool) config('session.expire_on_close', false)),
@@ -62,6 +70,13 @@ class SettingsController extends Controller
 
     public function update(Request $request)
     {
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('dashboard')->with([
+                'message' => 'Unauthorized. Only Central Headquarters staff can update global system settings.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         $validated = $request->validate([
             'session_lifetime_minutes' => ['required', 'integer', 'min:1', 'max:1440'],
             'session_expire_on_close' => ['nullable', 'boolean'],

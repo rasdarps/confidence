@@ -49,9 +49,15 @@ class PurchaseController extends Controller
     } // End Method
 
     public function create(){ 
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Purchases and supplier stock intake are managed at Central Warehouse only.');
+        }
+
+        $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
         $unit = Unit::all();
         $category = Category::all();
-        $products = Product::with(['category', 'unit'])->orderBy('name')->get();
+        $products = Product::with(['category', 'unit', 'outletStocks'])->orderBy('name')->get();
         $suppliers = Supplier::all();
 
         // Get the maximum numeric purchase_no
@@ -64,12 +70,23 @@ class PurchaseController extends Controller
 
         $date = Carbon::now()->format('Y-m-d');        
        
-         return view('backend.purchase.create',compact('purchase_no','category','date','suppliers','unit', 'products'));
+         return view('backend.purchase.create',compact('purchase_no','category','date','suppliers','unit', 'products', 'centralOutletId'));
     } // End Method
 
 
         public function store(Request $request)
     {
+            $currentUser = auth()->user();
+            if ($currentUser && ! $currentUser->isCentral()) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'status' => 403,
+                        'message' => 'Purchases and supplier stock intake are managed at Central Warehouse only.',
+                    ], 403);
+                }
+                abort(403, 'Purchases and supplier stock intake are managed at Central Warehouse only.');
+            }
+
             $requestedStatus = PaymentStatus::normalize((string) $request->paid_status);
 
         // Backend validation
@@ -382,6 +399,11 @@ class PurchaseController extends Controller
 
     public function edit(string $encryptedId)
     {
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Purchases and supplier stock intake are managed at Central Warehouse only.');
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $purchase = Purchase::with([
@@ -431,6 +453,11 @@ class PurchaseController extends Controller
 
     public function update(Request $request, string $encryptedId)
     {
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Purchases and supplier stock intake are managed at Central Warehouse only.');
+        }
+
         $id = Crypt::decrypt($encryptedId);
 
         $purchase = Purchase::with(['purchase_details.product', 'purchase_payment'])
@@ -519,6 +546,7 @@ class PurchaseController extends Controller
             $beforeTotal = round((float) ($payment->total_amount ?? 0), 2);
             $changeRows = [];
 
+            $centralOutletId = $purchase->outlet_id ?: (\App\Models\Outlet::where('is_central', true)->value('id') ?? 1);
             $productLocks = Product::query()
                 ->whereIn('id', array_keys($oldQtyByProduct))
                 ->lockForUpdate()
@@ -529,7 +557,7 @@ class PurchaseController extends Controller
                 $newTotalQty = (float) ($newQtyByProduct[$productId] ?? 0);
                 $qtyReduction = round(max(0, $oldTotalQty - $newTotalQty), 2);
                 $product = $productLocks->get((int) $productId);
-                $availableQty = (float) optional($product)->quantity;
+                $availableQty = $product ? (float) $product->quantityForOutlet($centralOutletId) : 0;
 
                 if (! $product) {
                     throw ValidationException::withMessages([
@@ -575,7 +603,11 @@ class PurchaseController extends Controller
                 }
 
                 $product = $productLocks->get((int) $detail->product_id);
-                $beforeQty = round((float) $product->quantity, 2);
+                $outletStock = \App\Models\OutletStock::firstOrCreate(
+                    ['outlet_id' => $centralOutletId, 'product_id' => $product->id],
+                    ['quantity' => 0, 'stock_level' => 0]
+                );
+                $beforeQty = round((float) $outletStock->quantity, 2);
                 $afterQty = round($beforeQty + $deltaQty, 2);
 
                 if ($afterQty < 0) {
@@ -585,8 +617,8 @@ class PurchaseController extends Controller
                 }
 
                 if ($deltaQty !== 0.0) {
-                    $product->quantity = $afterQty;
-                    $product->save();
+                    $outletStock->quantity = $afterQty;
+                    $outletStock->save();
 
                     if ($deltaQty > 0) {
                         app(StockLedgerService::class)->record([
@@ -746,6 +778,14 @@ class PurchaseController extends Controller
 
     public function cancel(Request $request, $encryptedId)
     {
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Purchases and supplier stock intake are managed at Central Warehouse only.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $purchase = Purchase::with('purchase_details')->findOrFail($id);

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AccountingAccount;
 use App\Models\BankAccount;
 use App\Models\CapitalLoanEntry;
+use App\Models\Outlet;
 use App\Services\Accounting\JournalPostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,13 +26,20 @@ class CapitalLoanController extends Controller
     public function index(CapitalLoanEntriesDataTable $dataTable)
     {
         $bankAccounts = BankAccount::query()->where('is_active', true)->orderBy('name')->get();
+        $outlets = Outlet::active()
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'type', 'is_central']);
 
-        return $dataTable->render('backend.accounting.capital_loans', compact('bankAccounts'));
+        $defaultOutletId = (int) (Outlet::centralWarehouseId() ?: auth()->user()?->outlet_id ?: ($outlets->first()?->id ?? 0));
+
+        return $dataTable->render('backend.accounting.capital_loans', compact('bankAccounts', 'outlets', 'defaultOutletId'));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
+            'outlet_id' => ['nullable', 'exists:outlets,id'],
             'transaction_date' => ['required', 'date'],
             'entry_type' => ['required', 'in:owner_capital,bank_loan,individual_loan'],
             'receive_into' => ['required', 'in:cash,bank'],
@@ -92,6 +100,10 @@ class CapitalLoanController extends Controller
                 default => 'Capital/Loan',
             };
 
+            $resolvedOutletId = !empty($data['outlet_id'])
+                ? (int) $data['outlet_id']
+                : (int) (Outlet::centralWarehouseId() ?: auth()->user()?->outlet_id);
+
             $journal = $this->journalPostingService->postJournal(
                 sourceType: 'capital_loan_entry',
                 sourceId: (int) $entry->id,
@@ -112,7 +124,8 @@ class CapitalLoanController extends Controller
                         'description' => $entryTypeLabel . ' source recognition',
                     ],
                 ],
-                postedBy: auth()->id()
+                postedBy: auth()->id(),
+                outletId: $resolvedOutletId > 0 ? $resolvedOutletId : null
             );
 
             $entry->update([
@@ -138,6 +151,7 @@ class CapitalLoanController extends Controller
         $entry = CapitalLoanEntry::query()->findOrFail($id);
 
         $data = $request->validate([
+            'outlet_id' => ['nullable', 'exists:outlets,id'],
             'transaction_date' => ['required', 'date'],
             'entry_type' => ['required', 'in:owner_capital,bank_loan,individual_loan'],
             'receive_into' => ['required', 'in:cash,bank'],
@@ -203,6 +217,10 @@ class CapitalLoanController extends Controller
                 'description' => $data['description'] ?? null,
             ]);
 
+            $resolvedOutletId = !empty($data['outlet_id'])
+                ? (int) $data['outlet_id']
+                : (int) (Outlet::centralWarehouseId() ?: auth()->user()?->outlet_id);
+
             $referenceNo = (string) ($data['reference_no'] ?? ('CAP-LOAN-' . $entry->id));
             $journal = $this->journalPostingService->postJournal(
                 sourceType: 'capital_loan_entry',
@@ -224,7 +242,8 @@ class CapitalLoanController extends Controller
                         'description' => $entryTypeLabel . ' source recognition',
                     ],
                 ],
-                postedBy: auth()->id()
+                postedBy: auth()->id(),
+                outletId: $resolvedOutletId > 0 ? $resolvedOutletId : null
             );
 
             $entry->update([

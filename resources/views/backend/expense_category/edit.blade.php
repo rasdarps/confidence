@@ -35,9 +35,21 @@ use Illuminate\Support\Facades\Crypt;
                             </div>
 
                             <div class="col-md-6 mx-auto">
-                                <div class="form-group">
+                                <div class="form-group mb-3">
                                     <label for="name"><strong>Category Name <span class="text-danger">*</span></strong></label>
                                     <input type="text" id="name" name="name" class="form-control" value="{{ old('name', $expenseCategory->name) }}" placeholder="enter category name">
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="accounting_account_id"><strong>GL Expense Account (Chart of Accounts)</strong></label>
+                                    <select name="accounting_account_id" id="accounting_account_id" class="form-control select2">
+                                        <option value="">Default (5200 Operating Expenses)</option>
+                                        @foreach($accounts as $acc)
+                                            <option value="{{ $acc->id }}" {{ (int) old('accounting_account_id', $expenseCategory->accounting_account_id) === (int) $acc->id ? 'selected' : '' }}>
+                                                [{{ $acc->code }}] {{ $acc->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    <small class="form-text text-muted">Expense lines using this category will automatically debit this account in the General Ledger and Income Statement.</small>
                                 </div>
                             </div>
 

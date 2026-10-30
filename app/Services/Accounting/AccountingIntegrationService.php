@@ -7,6 +7,7 @@ use App\Models\AccountingJournal;
 use App\Models\AccountingAccount;
 use App\Models\CashReconciliation;
 use App\Models\ExpenseVoucher;
+use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\PaymentDetail;
 use App\Models\PurchaseDetail;
@@ -97,7 +98,8 @@ class AccountingIntegrationService
             description: 'Auto posting for Sale #' . $sale->sale_no,
             postingDate: (string) $sale->date,
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $sale->outlet_id ? (int) $sale->outlet_id : $this->centralOutletId()
         );
 
         Sale::whereKey($sale->id)->update([
@@ -174,7 +176,8 @@ class AccountingIntegrationService
             description: 'Auto posting for Purchase #' . $purchase->purchase_no,
             postingDate: (string) $purchase->date,
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $this->centralOutletId()
         );
 
         Purchase::whereKey($purchase->id)->update([
@@ -265,7 +268,8 @@ class AccountingIntegrationService
             description: 'Sale cancellation posting. Reason: ' . $reason,
             postingDate: now()->toDateString(),
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $sale->outlet_id ? (int) $sale->outlet_id : $this->centralOutletId()
         );
 
         Sale::whereKey($sale->id)->update([
@@ -340,7 +344,8 @@ class AccountingIntegrationService
             description: 'Purchase cancellation posting. Reason: ' . $reason,
             postingDate: now()->toDateString(),
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $this->centralOutletId()
         );
 
         Purchase::whereKey($purchase->id)->update([
@@ -376,6 +381,7 @@ class AccountingIntegrationService
         }
 
         [$cashAccount, $receivableAccount] = $this->accountIds(['1000', '1100']);
+        $saleOutletId = Sale::whereKey($payment->sale_id)->value('outlet_id');
 
         $journal = $this->journalPostingService->postJournal(
             sourceType: 'sale_receipt',
@@ -399,7 +405,8 @@ class AccountingIntegrationService
                     'entity_id' => $payment->customer_id,
                 ],
             ],
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $saleOutletId ? (int) $saleOutletId : $this->centralOutletId()
         );
 
         PaymentDetail::whereKey($paymentDetail->id)->update([
@@ -446,7 +453,8 @@ class AccountingIntegrationService
                     'description' => 'Cash paid to supplier',
                 ],
             ],
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $this->centralOutletId()
         );
 
         PurchasePaymentDetail::whereKey($paymentDetail->id)->update([
@@ -469,7 +477,52 @@ class AccountingIntegrationService
             return null;
         }
 
-        [$debitAccountId, $creditAccountId] = $this->resolveMapping('expense.payment', '5200', '1000');
+        [$defaultDebitAccountId, $creditAccountId] = $this->resolveMapping('expense.payment', '5200', '1000');
+
+        if (!$voucher->relationLoaded('items')) {
+            $voucher->load('items.category.account');
+        } else {
+            $voucher->items->loadMissing('category.account');
+        }
+
+        $lines = [];
+        $recordedDebits = 0;
+
+        foreach ($voucher->items as $item) {
+            $itemAmount = round((float) $item->amount, 2);
+            if ($itemAmount <= 0) {
+                continue;
+            }
+
+            $debitAccountId = $item->category?->accounting_account_id ?: $defaultDebitAccountId;
+            $catName = $item->category?->name ?? 'Operating Expense';
+            $lineDesc = $item->description ? ($catName . ': ' . $item->description) : ($catName . ' expense');
+
+            $lines[] = [
+                'account_id' => $debitAccountId,
+                'debit' => $itemAmount,
+                'credit' => 0,
+                'description' => substr($lineDesc, 0, 255),
+            ];
+            $recordedDebits += $itemAmount;
+        }
+
+        if (empty($lines)) {
+            $lines[] = [
+                'account_id' => $defaultDebitAccountId,
+                'debit' => $total,
+                'credit' => 0,
+                'description' => 'Expense recognized',
+            ];
+            $recordedDebits = $total;
+        }
+
+        $lines[] = [
+            'account_id' => $creditAccountId,
+            'debit' => 0,
+            'credit' => round($recordedDebits, 2),
+            'description' => 'Expense payment source',
+        ];
 
         $journal = $this->journalPostingService->postJournal(
             sourceType: 'expense_voucher',
@@ -477,21 +530,9 @@ class AccountingIntegrationService
             referenceNo: (string) ($voucher->reference_no ?? ('EXP-' . $voucher->id)),
             description: 'Expense voucher posting #' . $voucher->id,
             postingDate: (string) $voucher->voucher_date,
-            lines: [
-                [
-                    'account_id' => $debitAccountId,
-                    'debit' => $total,
-                    'credit' => 0,
-                    'description' => 'Expense recognized',
-                ],
-                [
-                    'account_id' => $creditAccountId,
-                    'debit' => 0,
-                    'credit' => $total,
-                    'description' => 'Expense payment source',
-                ],
-            ],
-            postedBy: $userId
+            lines: $lines,
+            postedBy: $userId,
+            outletId: $voucher->outlet_id ? (int) $voucher->outlet_id : $this->centralOutletId()
         );
 
         ExpenseVoucher::whereKey($voucher->id)->update([
@@ -520,7 +561,8 @@ class AccountingIntegrationService
             sourceId: (int) $voucher->id,
             postingDate: now()->toDateString(),
             reason: $reason,
-            userId: $userId
+            userId: $userId,
+            outletId: $voucher->outlet_id ? (int) $voucher->outlet_id : $this->centralOutletId()
         );
 
         ExpenseVoucher::whereKey($voucher->id)->update([
@@ -555,7 +597,6 @@ class AccountingIntegrationService
             $lines[] = ['account_id' => $debitAccountId, 'debit' => $total, 'credit' => 0, 'description' => 'Stock adjustment decrease'];
             $lines[] = ['account_id' => $creditAccountId, 'debit' => 0, 'credit' => $total, 'description' => 'Inventory reduction'];
         } else {
-            // Mixed lines are posted with net inventory effect: debit when net increase, credit when net decrease.
             $delta = (float) $adjustment->items()->get()->sum(function ($item) {
                 $before = (float) $item->before_qty;
                 $after = (float) $item->after_qty;
@@ -590,7 +631,8 @@ class AccountingIntegrationService
             description: 'Stock adjustment posting #' . $adjustment->id,
             postingDate: (string) $adjustment->adjustment_date,
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $adjustment->outlet_id ? (int) $adjustment->outlet_id : $this->centralOutletId()
         );
 
         StockAdjustment::whereKey($adjustment->id)->update([
@@ -619,7 +661,8 @@ class AccountingIntegrationService
             sourceId: (int) $adjustment->id,
             postingDate: now()->toDateString(),
             reason: $reason,
-            userId: $userId
+            userId: $userId,
+            outletId: $adjustment->outlet_id ? (int) $adjustment->outlet_id : $this->centralOutletId()
         );
 
         StockAdjustment::whereKey($adjustment->id)->update([
@@ -646,13 +689,11 @@ class AccountingIntegrationService
         $lines = [];
 
         if ($variance > 0) {
-            // Overage: increase cash and credit an income account.
             $incomeAccount = $this->resolveMapping('cash.reconciliation.overage', '1000', '5400')[1];
             $amount = abs($variance);
             $lines[] = ['account_id' => $cashAccount, 'debit' => $amount, 'credit' => 0, 'description' => 'Cash overage recognized'];
             $lines[] = ['account_id' => $incomeAccount, 'debit' => 0, 'credit' => $amount, 'description' => 'Cash overage offset'];
         } else {
-            // Shortage: debit expense and reduce cash.
             $expenseAccount = $this->resolveMapping('cash.reconciliation.shortage', '5200', '1000')[0];
             $amount = abs($variance);
             $lines[] = ['account_id' => $expenseAccount, 'debit' => $amount, 'credit' => 0, 'description' => 'Cash shortage recognized'];
@@ -666,7 +707,8 @@ class AccountingIntegrationService
             description: 'Cash reconciliation variance posting #' . $reconciliation->id,
             postingDate: (string) $reconciliation->business_date,
             lines: $lines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $reconciliation->outlet_id ? (int) $reconciliation->outlet_id : $this->centralOutletId()
         );
 
         CashReconciliation::whereKey($reconciliation->id)->update([
@@ -695,7 +737,8 @@ class AccountingIntegrationService
             sourceId: (int) $reconciliation->id,
             postingDate: now()->toDateString(),
             reason: $reason,
-            userId: $userId
+            userId: $userId,
+            outletId: $reconciliation->outlet_id ? (int) $reconciliation->outlet_id : $this->centralOutletId()
         );
 
         CashReconciliation::whereKey($reconciliation->id)->update([
@@ -713,7 +756,8 @@ class AccountingIntegrationService
         int $sourceId,
         string $postingDate,
         string $reason,
-        ?int $userId = null
+        ?int $userId = null,
+        ?int $outletId = null
     ): ?int {
         $original = AccountingJournal::query()->find($originalJournalId);
         if (!$original) {
@@ -743,6 +787,8 @@ class AccountingIntegrationService
             ];
         })->toArray();
 
+        $resolvedOutletId = $outletId ?: ((isset($original->outlet_id) && $original->outlet_id) ? (int) $original->outlet_id : $this->centralOutletId());
+
         $reversal = $this->journalPostingService->postJournal(
             sourceType: $sourceType,
             sourceId: $sourceId,
@@ -750,7 +796,8 @@ class AccountingIntegrationService
             description: 'Reversal of journal ' . $original->journal_no . '. Reason: ' . $reason,
             postingDate: $postingDate,
             lines: $reversalLines,
-            postedBy: $userId
+            postedBy: $userId,
+            outletId: $resolvedOutletId
         );
 
         $original->update([
@@ -845,6 +892,12 @@ class AccountingIntegrationService
         return Schema::hasTable('accounting_accounts')
             && Schema::hasTable('accounting_journals')
             && Schema::hasTable('accounting_journal_lines');
+    }
+
+    private function centralOutletId(): ?int
+    {
+        $id = Outlet::where('is_central', true)->value('id');
+        return $id ? (int) $id : null;
     }
 
     /**

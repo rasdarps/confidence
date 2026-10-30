@@ -20,8 +20,22 @@ class DailyTransactionEmailDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('scope', function () {
+                return '<span class="badge badge-soft-info" style="color: #0F766E; background-color: #E6FFFA; border: 1px solid #B2F5EA;"><i class="fas fa-building me-1"></i> Enterprise (All Outlets)</span>';
+            })
             ->addColumn('sender_name', function ($row) {
-                return $row->sender ? $row->sender->name : 'System Auto Scheduler';
+                if (strtolower((string) $row->type) === 'auto') {
+                    return '<span class="text-muted font-size-12"><i class="fas fa-cogs me-1"></i> System Cron</span>';
+                }
+                return $row->sender ? e($row->sender->name) : 'Authorized Staff';
+            })
+            ->addColumn('net_total', function ($row) {
+                $net = (float) $row->sales_total - (float) $row->expenses_total - (float) $row->cash_shortage;
+                $formatted = number_format($net, 2);
+                if ($net >= 0) {
+                    return '<span class="fw-bold" style="color: #0F766E;">+' . $formatted . '</span>';
+                }
+                return '<span class="fw-bold text-danger">' . $formatted . '</span>';
             })
             ->editColumn('business_date', function ($row) {
                 return $row->business_date
@@ -35,7 +49,11 @@ class DailyTransactionEmailDataTable extends DataTable
                 return number_format((float) $row->expenses_total, 2);
             })
             ->editColumn('cash_shortage', function ($row) {
-                return number_format((float) $row->cash_shortage, 2);
+                $shortage = (float) $row->cash_shortage;
+                if ($shortage > 0) {
+                    return '<span class="badge bg-danger text-white">Gh¢ ' . number_format($shortage, 2) . '</span>';
+                }
+                return '<span class="text-muted">Gh¢ 0.00</span>';
             })
             ->editColumn('sent_at', function ($row) {
                 return $row->sent_at
@@ -43,8 +61,12 @@ class DailyTransactionEmailDataTable extends DataTable
                     : '';
             })
             ->editColumn('type', function ($row) {
-                return strtoupper((string) $row->type);
+                if (strtolower((string) $row->type) === 'auto') {
+                    return '<span class="badge bg-info text-white"><i class="fas fa-robot me-1"></i> Auto</span>';
+                }
+                return '<span class="badge bg-secondary text-white"><i class="fas fa-user me-1"></i> Manual</span>';
             })
+            ->rawColumns(['scope', 'type', 'cash_shortage', 'net_total', 'sender_name'])
             ->setRowId('id');
     }
 
@@ -91,15 +113,16 @@ class DailyTransactionEmailDataTable extends DataTable
     public function getColumns(): array
     {
         return [
-            Column::make('sent_at')->title('Sent At'),
+            Column::make('sent_at')->title('Sent Timestamp'),
             Column::make('business_date')->title('Business Date'),
-            Column::make('type')->title('Type'),
+            Column::make('scope')->title('Scope')->searchable(false)->orderable(false),
+            Column::make('type')->title('Dispatch Type'),
             Column::make('recipient_email')->title('Recipient Email'),
-            Column::make('sales_total')->title('Sales Total (Gh¢)'),
-            Column::make('expenses_total')->title('Expenses Total (Gh¢)'),
-            Column::make('cash_shortage')->title('Cash Shortage (Gh¢)'),
-            Column::make('sender_name')->title('Sent By'),
-            Column::make('notes')->title('Notes'),
+            Column::make('sales_total')->title('Sales (Gh¢)'),
+            Column::make('expenses_total')->title('Expenses (Gh¢)'),
+            Column::make('cash_shortage')->title('Shortage (Gh¢)'),
+            Column::make('net_total')->title('Net Flow (Gh¢)')->searchable(false)->orderable(false),
+            Column::make('sender_name')->title('Dispatched By'),
         ];
     }
 

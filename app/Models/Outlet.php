@@ -92,4 +92,25 @@ class Outlet extends Model
     {
         return $query->where('type', 'retail_outlet');
     }
+
+    public static function centralWarehouse(): ?self
+    {
+        return static::query()
+            ->where('is_central', true)
+            ->orderBy('id')
+            ->first()
+            ?? static::query()->orderBy('id')->first();
+    }
+
+    public static function centralWarehouseId(): ?int
+    {
+        $id = static::query()
+            ->where('is_central', true)
+            ->orderBy('id')
+            ->value('id')
+            ?? static::query()->orderBy('id')->value('id');
+
+        return $id ? (int) $id : null;
+    }
 }
+

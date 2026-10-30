@@ -146,10 +146,19 @@
 <div class="row">
     <div class="col-12">
         <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-            <h4 class="mb-sm-0">Dashboard</h4>
+            <div>
+                <h4 class="mb-sm-0">
+                    Dashboard
+                    @if(isset($selectedOutlet) && $selectedOutlet)
+                        <span class="badge bg-info ms-2">{{ $selectedOutlet->name }} ({{ $selectedOutlet->code }})</span>
+                    @elseif(!empty($canFilterOutlets))
+                        <span class="badge bg-primary ms-2">All Outlets (Consolidated)</span>
+                    @endif
+                </h4>
+            </div>
             <div class="page-title-right">
                 <ol class="breadcrumb m-0">
-                    <li class="breadcrumb-item"><a href="javascript: void(0);">{{ $company->name }} | POS</a></li>
+                    <li class="breadcrumb-item"><a href="javascript: void(0);">{{ $company->name ?? 'POS' }} | POS</a></li>
                     <li class="breadcrumb-item active">Dashboard</li>
                 </ol>
             </div>
@@ -157,11 +166,53 @@
     </div>
 </div>
 <!-- end page title -->
-  
+
 @can('dashboard-view')
+
+    @if(!empty($canFilterOutlets) && isset($outlets) && $outlets->count() > 0)
+    <!-- Multi-Outlet Filter Bar (Requires dashboard-outlet-filter permission) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card dashboard-surface-card mb-0">
+                <div class="card-body py-2 px-3">
+                    <form method="GET" action="{{ route('dashboard') }}" class="row align-items-center g-2 mb-0">
+                        <div class="col-md-auto">
+                            <span class="fw-bold text-dark">
+                                <i class="ri-store-2-line text-primary me-1"></i>Filter Dashboard by Outlet / Location:
+                            </span>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <select name="outlet_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">All Outlets & Central Warehouse (Consolidated)</option>
+                                @foreach($outlets as $outlet)
+                                    <option value="{{ $outlet->id }}" {{ (int) ($selectedOutletId ?? 0) === (int) $outlet->id ? 'selected' : '' }}>
+                                        {{ $outlet->name }} ({{ $outlet->code }}){{ $outlet->is_central ? ' — Central HQ' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @if(!empty($selectedOutletId))
+                        <div class="col-md-auto">
+                            <a href="{{ route('dashboard') }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="ri-refresh-line me-1"></i>Reset to All Outlets
+                            </a>
+                        </div>
+                        @endif
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="row mb-2 dashboard-metric-shell finance-shell">
         <div class="col-12">
-            <h5 class="mb-3">Finance Snapshot</h5>
+            <h5 class="mb-3">
+                Finance Snapshot
+                @if(isset($selectedOutlet) && $selectedOutlet)
+                    <small class="text-muted fs-6">— {{ $selectedOutlet->name }}</small>
+                @endif
+            </h5>
         </div>
 
         <div class="col-xl-3 col-md-6">
@@ -293,7 +344,14 @@
 
     <div class="row mt-3 mb-2 dashboard-metric-shell inventory-shell">
         <div class="col-12">
-            <h5 class="mb-3">Inventory Snapshot</h5>
+            <h5 class="mb-3">
+                Inventory Snapshot
+                @if(isset($selectedOutlet) && $selectedOutlet)
+                    <small class="text-muted fs-6">— {{ $selectedOutlet->name }}</small>
+                @elseif(!empty($canFilterOutlets))
+                    <small class="text-muted fs-6">— All Outlets Combined</small>
+                @endif
+            </h5>
         </div>
 
         <div class="col-xl-6 col-md-6">
@@ -319,7 +377,7 @@
                 <div class="card-body">
                     <div class="d-flex">
                         <div class="flex-grow-1">
-                            <p class="text-truncate font-size-14 mb-2" style="color:#fff;">Stock Value</p>
+                            <p class="text-truncate font-size-14 mb-2" style="color:#fff;">Stock Value (Cost)</p>
                             <h4 class="mb-2" style="color:#fff;">{{ number_format((float) $total_stock_value, 2) }}</h4>
                         </div>
                         <div class="avatar-sm">
@@ -375,19 +433,25 @@
     @endif
 
     <!-- Re-Stock Alert -->
-    <div class="row">
+    <div class="row mt-3">
         <div class="col-xl-12">
             <div class="card dashboard-surface-card">
                 <div class="card-body">
-                    <h4 class="card-title mb-4">Re-Stock Alert</h4>
+                    <h4 class="card-title mb-4">
+                        Re-Stock Alert
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <small class="text-muted fs-6">— {{ $selectedOutlet->name }}</small>
+                        @endif
+                    </h4>
                     <table id="datatable" class="table table-bordered dt-responsive nowrap" style="width:100%;">
                         <thead>
                             <tr>
                                 <th>Sl</th>
                                 <th>Name</th>
+                                <th>Outlet / Location</th>
                                 <th>Remaining Stock</th>           
                                 <th>Stock Level</th>
-                                <th>Stock Status</th>
+                                <th>Stock Status / Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -395,14 +459,25 @@
                             <tr style="color:red">
                                 <td>{{ $key+1 }}</td>
                                 <td>{{ $product->name }}</td>
-                                <td>{{ $product->quantity }}</td>
-                                <td>{{ $product->stock_level }}</td>
                                 <td>
-                                    @if($product->quantity <= $product->stock_level)
+                                    <span class="badge {{ !empty($product->is_central) ? 'bg-primary' : 'bg-info' }}">
+                                        {{ $product->outlet_name ?? 'Central Warehouse' }}
+                                    </span>
+                                </td>
+                                <td>{{ number_format((float) $product->quantity, 2) }}</td>
+                                <td>{{ number_format((float) $product->stock_level, 2) }}</td>
+                                <td>
+                                    @if((float) $product->quantity <= (float) $product->stock_level)
                                         <div class="font-size-13">
-                                            <a href="{{ route('purchases.create') }}" title="Reorder Product">
-                                                <i class="ri-checkbox-blank-circle-fill font-size-10 text-danger align-middle me-2"></i>Reorder
-                                            </a>
+                                            @if(!empty($product->is_central))
+                                                <a href="{{ route('purchases.create') }}" title="Purchase from Supplier">
+                                                    <i class="ri-checkbox-blank-circle-fill font-size-10 text-danger align-middle me-2"></i>Reorder (Purchase)
+                                                </a>
+                                            @else
+                                                <a href="{{ route('stock-transfers.create') }}" title="Transfer Stock from Central Warehouse">
+                                                    <i class="ri-truck-line font-size-12 text-danger align-middle me-1"></i>Dispatch Transfer
+                                                </a>
+                                            @endif
                                         </div>
                                     @else
                                         <div class="font-size-13">
@@ -418,7 +493,7 @@
             </div><!-- end card -->
         </div><!-- end col -->
     </div><!-- end row -->
-    @else
+@else
     <div class="row">
         <div class="col-12">
             <div class="card instruction-card">
@@ -437,14 +512,14 @@
                             <i class="fas fa-key"></i> Change Password
                         </a>
 
-                        @can('invoice-create')
-                        <a href="{{ route('invoices.create') }}" class="btn btn-danger btn-sm">
+                        @can('sale-create')
+                        <a href="{{ route('sales.create') }}" class="btn btn-danger btn-sm">
                             <i class="fas fa-cart-plus"></i> Create Sale
                         </a>
                         @endcan
 
-                        @can('invoice-list')
-                        <a href="{{ route('invoices.index') }}" class="btn btn-outline-primary btn-sm">
+                        @can('sale-list')
+                        <a href="{{ route('sales.index') }}" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-list"></i> All Sales
                         </a>
                         <a href="{{ route('print.daily_total_sales') }}" class="btn btn-outline-info btn-sm">
@@ -553,4 +628,3 @@
 </script>
 
 @endsection
-

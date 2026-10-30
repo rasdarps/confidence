@@ -12,8 +12,8 @@
                     <div class="card-header with-border">
                         <span class="card-title" style="font-size:20px;">Create | Stock Adjustment</span>
 
-                        <a href="{{ route('stock-adjustments.index') }}" style="float:right">
-                            <button type="button" class="btn btn-primary modal_btn">View Adjustments</button>
+                        <a href="{{ route('stock-adjustments.index') }}" class="btn btn-modern-header" style="float:right">
+                            <i class="fas fa-list me-1 mr-1"></i> View Adjustments
                         </a>
 
                         <hr>
@@ -33,24 +33,46 @@
                                 <div class="row">
                                     <div class="col-md-3">
                                         <div class="form-group">
+                                            @if($canChangeOutlet)
+                                                <label for="outlet_id"><strong>Branch / Outlet <span class="text-danger">*</span></strong></label>
+                                                <select id="outlet_id" name="outlet_id" class="form-control" required>
+                                                    @foreach($outlets as $outlet)
+                                                        <option value="{{ $outlet->id }}" {{ (int) $currentOutletId === (int) $outlet->id ? 'selected' : '' }}>
+                                                            {{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '' }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            @else
+                                                <label><strong>Branch / Outlet</strong></label>
+                                                <div>
+                                                    <span class="badge bg-primary p-2 fs-6">
+                                                        <i class="fas fa-store"></i> {{ $currentOutlet->name ?? 'Assigned Station' }}
+                                                    </span>
+                                                </div>
+                                                <input type="hidden" id="outlet_id" name="outlet_id" value="{{ $currentOutletId }}">
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="form-group">
                                             <label for="adjustment_date"><strong>Date <span class="text-danger">*</span></strong></label>
                                             <input type="date" id="adjustment_date" name="adjustment_date" class="form-control" value="{{ old('adjustment_date', now()->format('Y-m-d')) }}">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="reference_no"><strong>Reference No</strong></label>
                                             <input type="text" id="reference_no" name="reference_no" class="form-control" value="{{ old('reference_no') }}" placeholder="optional">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="adjustment_type"><strong>Type <span class="text-danger">*</span></strong></label>
                                             <input type="text" id="adjustment_type_label" class="form-control" value="Auto (from physical count)" readonly>
                                             <input type="hidden" id="adjustment_type" name="adjustment_type">
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <div class="form-group">
                                             <label for="reason"><strong>Reason</strong></label>
                                             <input type="text" id="reason" name="reason" class="form-control" placeholder="reason">
@@ -86,8 +108,15 @@
                                                     <select name="product_id[]" class="form-control product-select" required>
                                                         <option value="">Select Product</option>
                                                         @foreach($products as $product)
-                                                            <option value="{{ $product->id }}" data-qty="{{ $product->quantity }}" data-cost="{{ $product->cost_price ?? 0 }}">
-                                                                {{ $product->name  ?? 'N/A' }}
+                                                            @php
+                                                                $outletStocksMap = $product->outletStocks->pluck('quantity', 'outlet_id');
+                                                                $initialQty = $outletStocksMap[$currentOutletId] ?? 0;
+                                                            @endphp
+                                                            <option value="{{ $product->id }}"
+                                                                data-qty="{{ $initialQty }}"
+                                                                data-cost="{{ $product->cost_price ?? 0 }}"
+                                                                data-stocks='@json($outletStocksMap)'>
+                                                                {{ $product->name }} ({{ $product->barcode ?? 'N/A' }})
                                                             </option>
                                                         @endforeach
                                                     </select>
@@ -117,12 +146,19 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <button type="button" id="add-line" class="btn btn-info btn-sm"><i class="fas fa-plus-circle"></i> Add Line</button>
+                                    <button type="button" id="add-line" class="btn btn-modern-primary">
+                                        <i class="fas fa-plus-circle me-1 mr-1"></i> Add Line
+                                    </button>
                                 </div>
 
-                                <div class="row">
+                                <div class="row mt-4 pt-3 border-top">
                                     <div class="col-12 text-center">
-                                        <button type="submit" class="btn btn-success mt-2">Submit Adjustment</button>
+                                        <a href="{{ route('stock-adjustments.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary">
+                                            <i class="fas fa-check-circle me-1 mr-1"></i> Submit Adjustment
+                                        </button>
                                     </div>
                                 </div>
                             </form>
@@ -242,9 +278,37 @@ $(function () {
         }
     }
 
+    function getCurrentOutletId() {
+        return $('#outlet_id').val();
+    }
+
+    function getProductQtyForOutlet(option, outletId) {
+        const stocks = $(option).data('stocks') || {};
+        if (stocks[outletId] !== undefined) {
+            return parseFloat(stocks[outletId]) || 0;
+        }
+        return parseFloat($(option).data('qty')) || 0;
+    }
+
+    $('#outlet_id').on('change', function () {
+        const selectedOutletId = $(this).val();
+        $('.line-row').each(function () {
+            const $row = $(this);
+            const $selected = $row.find('.product-select option:selected');
+            if ($selected.val()) {
+                const qty = getProductQtyForOutlet($selected, selectedOutletId);
+                $row.find('.current-qty').val(qty);
+                recalcFromPhysicalCount($row);
+            }
+        });
+        setComputedAdjustmentType();
+        updateTotals();
+    });
+
     $(document).on('change', '.product-select', function () {
         const $selected = $(this).find('option:selected');
-        const qty = $selected.data('qty') ?? '';
+        const outletId = getCurrentOutletId();
+        const qty = $selected.val() ? getProductQtyForOutlet($selected, outletId) : '';
         const cost = $selected.data('cost') ?? 0;
         const $row = $(this).closest('tr');
         $row.find('.current-qty').val(qty);

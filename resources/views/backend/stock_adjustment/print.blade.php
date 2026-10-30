@@ -32,6 +32,7 @@
     </div>
 
     <div class="meta">
+        <div><strong>Branch / Outlet:</strong> {{ optional($adjustment->outlet)->name ?: 'Central Warehouse' }}</div>
         <div><strong>Reference:</strong> {{ $adjustment->reference_no ?: '-' }}</div>
         <div><strong>Type:</strong> {{ ucfirst($adjustment->adjustment_type) }}</div>
         <div><strong>Reason:</strong> {{ $adjustment->reason ?: '-' }}</div>

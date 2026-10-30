@@ -110,16 +110,27 @@ class ReportController extends Controller
     }
 
     public function profitReport(ProfitReportDataTable $dataTable){
-        // $allData = Sale::orderBy('date','desc')->orderBy('id','desc')->get();
-        $sales = Sale::orderBy('sale_no')->get();
-        $users = User::orderBy('name')->get();
-        $customers = Customer::orderBy('name')->get();
-        return $dataTable->render('backend.report.profit', compact('sales', 'users', 'customers'));
+        $salesQuery = Sale::orderBy('sale_no');
+        if (auth()->check() && auth()->user()->outlet_id) {
+            $salesQuery->where('outlet_id', auth()->user()->outlet_id);
+        }
+        $sales = $salesQuery->get(['id', 'sale_no']);
+        $users = User::orderBy('name')->get(['id', 'name', 'user_type']);
+        $customers = Customer::orderBy('name')->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
+        return $dataTable->render('backend.report.profit', compact('sales', 'users', 'customers', 'outlets'));
     }
 
     public function profitSummary(Request $request)
     {
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($request->filled('outlet_id') ? (int) $request->get('outlet_id') : null);
+
         $salesSub = DB::table('payments')
             ->selectRaw('sale_id, SUM(total_amount) as sales_total')
             ->groupBy('sale_id');
@@ -143,6 +154,10 @@ class ReportController extends Controller
             ->leftJoinSub($costSub, 'costs_agg', function ($join) {
                 $join->on('costs_agg.sale_id', '=', 'sales.id');
             });
+
+        if ($outletId) {
+            $invoiceQuery->where('sales.outlet_id', $outletId);
+        }
 
         if ($invoiceId = $request->get('sale_id')) {
             $invoiceQuery->where('sales.id', $invoiceId);
@@ -174,7 +189,11 @@ class ReportController extends Controller
             ->first();
 
         $expenseQuery = ExpenseVoucherItem::query()
-            ->whereHas('voucher', function ($q) use ($request) {
+            ->whereHas('voucher', function ($q) use ($request, $outletId) {
+                if ($outletId) {
+                    $q->where('outlet_id', $outletId);
+                }
+
                 if ($fromDate = $request->get('from_date')) {
                     $q->whereDate('voucher_date', '>=', $fromDate);
                 }
@@ -218,44 +237,73 @@ class ReportController extends Controller
         $categories = ExpenseCategory::query()
             ->orderBy('name')
             ->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
+        $userOutletId = auth()->check() ? auth()->user()->outlet_id : null;
 
         $monthTotal = ExpenseVoucherItem::query()
-            ->whereHas('voucher', function ($q) {
+            ->whereHas('voucher', function ($q) use ($userOutletId) {
+                if ($userOutletId) {
+                    $q->where('outlet_id', $userOutletId);
+                }
                 $q->whereMonth('voucher_date', now()->month)
                     ->whereYear('voucher_date', now()->year);
             })
             ->sum('amount');
 
-        $overallTotal = ExpenseVoucherItem::query()->sum('amount');
+        $overallTotal = ExpenseVoucherItem::query()
+            ->when($userOutletId, function ($q) use ($userOutletId) {
+                $q->whereHas('voucher', fn ($vq) => $vq->where('outlet_id', $userOutletId));
+            })
+            ->sum('amount');
 
-        return $dataTable->render('backend.report.expense', compact('users', 'categories', 'monthTotal', 'overallTotal'));
+        return $dataTable->render('backend.report.expense', compact('users', 'categories', 'outlets', 'monthTotal', 'overallTotal'));
     }
 
     public function stockAdjustmentReport(StockAdjustmentReportDataTable $dataTable)
     {
         $users = User::orderBy('name')->get(['id', 'name']);
         $products = Product::orderBy('name')->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)->orderByDesc('is_central')->orderBy('name')->get();
+        $userOutletId = auth()->check() ? auth()->user()->outlet_id : null;
 
         $monthTotal = StockAdjustmentItem::query()
-            ->whereHas('adjustment', function ($q) {
+            ->whereHas('adjustment', function ($q) use ($userOutletId) {
+                if ($userOutletId) {
+                    $q->where('outlet_id', $userOutletId);
+                }
                 $q->whereMonth('adjustment_date', now()->month)
                     ->whereYear('adjustment_date', now()->year);
             })
             ->sum('amount');
 
-        $overallTotal = StockAdjustmentItem::query()->sum('amount');
+        $overallTotal = StockAdjustmentItem::query()
+            ->when($userOutletId, function ($q) use ($userOutletId) {
+                $q->whereHas('adjustment', fn ($aq) => $aq->where('outlet_id', $userOutletId));
+            })
+            ->sum('amount');
 
-        return $dataTable->render('backend.report.stock_adjustment', compact('users', 'products', 'monthTotal', 'overallTotal'));
+        return $dataTable->render('backend.report.stock_adjustment', compact('users', 'products', 'outlets', 'monthTotal', 'overallTotal'));
     }
 
     public function salesLinesReport(SalesLinesReportDataTable $dataTable)
     {
-        $sales = Sale::orderBy('sale_no')->get(['id', 'sale_no']);
+        $salesQuery = Sale::orderBy('sale_no');
+        if (auth()->check() && auth()->user()->outlet_id) {
+            $salesQuery->where('outlet_id', auth()->user()->outlet_id);
+        }
+        $sales = $salesQuery->get(['id', 'sale_no']);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
         $products = Product::orderBy('name')->get(['id', 'name']);
         $categories = Category::orderBy('name')->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
-        return $dataTable->render('backend.report.sales_lines', compact('sales', 'customers', 'products', 'categories'));
+        return $dataTable->render('backend.report.sales_lines', compact('sales', 'customers', 'products', 'categories', 'outlets'));
     }
 
     public function purchaseLinesReport(PurchaseLinesReportDataTable $dataTable)
@@ -283,6 +331,14 @@ class ReportController extends Controller
         $query = SaleDetail::query()
             ->leftJoin('sales', 'sale_details.sale_id', '=', 'sales.id')
             ->leftJoin('payments', 'payments.sale_id', '=', 'sales.id');
+
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($request->filled('outlet_id') ? (int) $request->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
 
         if ($saleId = $request->get('sale_id')) {
             $query->where('sale_details.sale_id', $saleId);
@@ -354,10 +410,18 @@ class ReportController extends Controller
 
     public function salesCashMovementReport(SalesCashMovementDataTable $dataTable)
     {
-        $sales = Sale::orderBy('sale_no')->get(['id', 'sale_no']);
+        $salesQuery = Sale::orderBy('sale_no');
+        if (auth()->check() && auth()->user()->outlet_id) {
+            $salesQuery->where('outlet_id', auth()->user()->outlet_id);
+        }
+        $sales = $salesQuery->get(['id', 'sale_no']);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
-        return $dataTable->render('backend.report.sales_cash_movement', compact('sales', 'customers'));
+        return $dataTable->render('backend.report.sales_cash_movement', compact('sales', 'customers', 'outlets'));
     }
 
     public function purchaseCashMovementReport(PurchaseCashMovementDataTable $dataTable)
@@ -370,10 +434,18 @@ class ReportController extends Controller
 
     public function salesCreditMovementReport(SalesCreditMovementDataTable $dataTable)
     {
-        $sales = Sale::orderBy('sale_no')->get(['id', 'sale_no']);
+        $salesQuery = Sale::orderBy('sale_no');
+        if (auth()->check() && auth()->user()->outlet_id) {
+            $salesQuery->where('outlet_id', auth()->user()->outlet_id);
+        }
+        $sales = $salesQuery->get(['id', 'sale_no']);
         $customers = Customer::orderBy('name')->get(['id', 'name']);
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
-        return $dataTable->render('backend.report.sales_credit_movement', compact('sales', 'customers'));
+        return $dataTable->render('backend.report.sales_credit_movement', compact('sales', 'customers', 'outlets'));
     }
 
     public function purchaseCreditMovementReport(PurchaseCreditMovementDataTable $dataTable)
@@ -520,34 +592,94 @@ class ReportController extends Controller
         ]);
     }
 
-    public function summaryLedger()
+    public function summaryLedger(Request $request)
     {
-        $totalPurchases = (float) PurchasePayment::sum('total_amount');
-        $totalSales = (float) Payment::sum('total_amount');
-        $cashSalesTotal = (float) Payment::where('paid_status', PaymentStatus::FULL_PAYMENT)->sum('total_amount');
-        $creditSalesTotal = (float) Payment::where('paid_status', PaymentStatus::FULL_CREDIT)->sum('total_amount');
-        $partialSalesTotal = (float) Payment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('total_amount');
-        $partialSalesPaidPortion = (float) Payment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('paid_amount');
-        $partialSalesDuePortion = (float) Payment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('due_amount');
+        $outlets = \App\Models\Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
-        $cashCollectedTotal = (float) Payment::sum('paid_amount');
-        $cashCollectedFromFullSales = (float) Payment::where('paid_status', PaymentStatus::FULL_PAYMENT)->sum('paid_amount');
-        $cashCollectedFromPartialSales = (float) Payment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('paid_amount');
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($request->filled('outlet_id') ? (int) $request->get('outlet_id') : null);
 
-        $receivablesTotal = (float) Payment::where('due_amount', '>', 0)->sum('due_amount');
-        $receivablesFromCreditSales = (float) Payment::where('paid_status', PaymentStatus::FULL_CREDIT)->sum('due_amount');
-        $receivablesFromPartialSales = (float) Payment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('due_amount');
+        $selectedOutlet = $outletId ? $outlets->firstWhere('id', $outletId) : null;
+        $fromDate = $request->get('from_date');
+        $toDate = $request->get('to_date');
 
-        $purchaseCashPaidTotal = (float) PurchasePayment::sum('paid_amount');
-        $cashPaidToFullPurchases = (float) PurchasePayment::where('paid_status', PaymentStatus::FULL_PAYMENT)->sum('paid_amount');
-        $cashPaidToPartialPurchases = (float) PurchasePayment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('paid_amount');
+        $paymentQuery = Payment::query()
+            ->leftJoin('sales', 'sales.id', '=', 'payments.sale_id');
 
-        $payablesTotal = (float) PurchasePayment::where('due_amount', '>', 0)->sum('due_amount');
-        $payablesFromCreditPurchases = (float) PurchasePayment::where('paid_status', PaymentStatus::FULL_CREDIT)->sum('due_amount');
-        $payablesFromPartialPurchases = (float) PurchasePayment::where('paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('due_amount');
+        if ($outletId) {
+            $paymentQuery->where('sales.outlet_id', $outletId);
+        }
+        if ($fromDate) {
+            $paymentQuery->whereDate('sales.date', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $paymentQuery->whereDate('sales.date', '<=', $toDate);
+        }
 
-        $currentStockValue = (float) Product::selectRaw('COALESCE(SUM(quantity * cost_price), 0) as total')->value('total');
-        $totalExpenses = (float) ExpenseVoucherItem::sum('amount');
+        // Supplier purchases are received into the Central Warehouse.
+        // Show them when viewing All Outlets or the Central Warehouse itself.
+        $includePurchases = !$selectedOutlet || $selectedOutlet->is_central;
+        $purchasePaymentQuery = PurchasePayment::query()
+            ->leftJoin('purchases', 'purchases.id', '=', 'purchase_payments.purchase_id');
+
+        if ($fromDate) {
+            $purchasePaymentQuery->whereDate('purchases.date', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $purchasePaymentQuery->whereDate('purchases.date', '<=', $toDate);
+        }
+
+        $totalPurchases = $includePurchases ? (float) (clone $purchasePaymentQuery)->sum('purchase_payments.total_amount') : 0.0;
+        $totalSales = (float) (clone $paymentQuery)->sum('payments.total_amount');
+        $cashSalesTotal = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::FULL_PAYMENT)->sum('payments.total_amount');
+        $creditSalesTotal = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::FULL_CREDIT)->sum('payments.total_amount');
+        $partialSalesTotal = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('payments.total_amount');
+        $partialSalesPaidPortion = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('payments.paid_amount');
+        $partialSalesDuePortion = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('payments.due_amount');
+
+        $cashCollectedTotal = (float) (clone $paymentQuery)->sum('payments.paid_amount');
+        $cashCollectedFromFullSales = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::FULL_PAYMENT)->sum('payments.paid_amount');
+        $cashCollectedFromPartialSales = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('payments.paid_amount');
+
+        $receivablesTotal = (float) (clone $paymentQuery)->where('payments.due_amount', '>', 0)->sum('payments.due_amount');
+        $receivablesFromCreditSales = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::FULL_CREDIT)->sum('payments.due_amount');
+        $receivablesFromPartialSales = (float) (clone $paymentQuery)->where('payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('payments.due_amount');
+
+        $purchaseCashPaidTotal = $includePurchases ? (float) (clone $purchasePaymentQuery)->sum('purchase_payments.paid_amount') : 0.0;
+        $cashPaidToFullPurchases = $includePurchases ? (float) (clone $purchasePaymentQuery)->where('purchase_payments.paid_status', PaymentStatus::FULL_PAYMENT)->sum('purchase_payments.paid_amount') : 0.0;
+        $cashPaidToPartialPurchases = $includePurchases ? (float) (clone $purchasePaymentQuery)->where('purchase_payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('purchase_payments.paid_amount') : 0.0;
+
+        $payablesTotal = $includePurchases ? (float) (clone $purchasePaymentQuery)->where('purchase_payments.due_amount', '>', 0)->sum('purchase_payments.due_amount') : 0.0;
+        $payablesFromCreditPurchases = $includePurchases ? (float) (clone $purchasePaymentQuery)->where('purchase_payments.paid_status', PaymentStatus::FULL_CREDIT)->sum('purchase_payments.due_amount') : 0.0;
+        $payablesFromPartialPurchases = $includePurchases ? (float) (clone $purchasePaymentQuery)->where('purchase_payments.paid_status', PaymentStatus::PARTIAL_PAYMENT)->sum('purchase_payments.due_amount') : 0.0;
+
+        $stockValueQuery = DB::table('outlet_stocks')
+            ->join('products', 'products.id', '=', 'outlet_stocks.product_id')
+            ->whereNull('products.deleted_at');
+        if ($outletId) {
+            $stockValueQuery->where('outlet_stocks.outlet_id', $outletId);
+        }
+        $currentStockValue = (float) $stockValueQuery
+            ->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.cost_price, 0)), 0) as total')
+            ->value('total');
+
+        $expenseQuery = ExpenseVoucherItem::query()
+            ->whereHas('voucher', function ($q) use ($outletId, $fromDate, $toDate) {
+                if ($outletId) {
+                    $q->where('outlet_id', $outletId);
+                }
+                if ($fromDate) {
+                    $q->whereDate('voucher_date', '>=', $fromDate);
+                }
+                if ($toDate) {
+                    $q->whereDate('voucher_date', '<=', $toDate);
+                }
+            });
+        $totalExpenses = (float) $expenseQuery->sum('amount');
 
         $salesSub = DB::table('payments')
             ->selectRaw('sale_id, SUM(total_amount) as sales_total')
@@ -565,28 +697,46 @@ class ReportController extends Controller
             )
             ->groupBy('idt.sale_id');
 
-        $grossSummary = Sale::query()
-            ->leftJoinSub($salesSub, 'sales', function ($join) {
-                $join->on('sales.sale_id', '=', 'sales.id');
+        $grossQuery = Sale::query()
+            ->leftJoinSub($salesSub, 'sales_agg', function ($join) {
+                $join->on('sales_agg.sale_id', '=', 'sales.id');
             })
-            ->leftJoinSub($costSub, 'costs', function ($join) {
-                $join->on('costs.sale_id', '=', 'sales.id');
-            })
-            ->selectRaw('COALESCE(SUM(sales.sales_total), 0) - COALESCE(SUM(costs.cost_total), 0) as gross_profit')
+            ->leftJoinSub($costSub, 'costs_agg', function ($join) {
+                $join->on('costs_agg.sale_id', '=', 'sales.id');
+            });
+
+        if ($outletId) {
+            $grossQuery->where('sales.outlet_id', $outletId);
+        }
+        if ($fromDate) {
+            $grossQuery->whereDate('sales.date', '>=', $fromDate);
+        }
+        if ($toDate) {
+            $grossQuery->whereDate('sales.date', '<=', $toDate);
+        }
+
+        $grossSummary = $grossQuery
+            ->selectRaw('COALESCE(SUM(sales_agg.sales_total), 0) - COALESCE(SUM(costs_agg.cost_total), 0) as gross_profit')
             ->first();
 
         $grossProfit = (float) ($grossSummary->gross_profit ?? 0);
-        $cashAdjustments = $this->approvedCashAdjustmentTotals();
+        $cashAdjustments = $this->approvedCashAdjustmentTotals($request);
         $cashShortageLoss = $cashAdjustments['shortage_loss'];
         $cashOverageGain = $cashAdjustments['overage_gain'];
         $cashNetAdjustment = $cashOverageGain - $cashShortageLoss;
-        $stockAdjustments = $this->stockAdjustmentTotals();
+        $stockAdjustments = $this->stockAdjustmentTotals($request);
         $stockShortageLoss = $stockAdjustments['shortage_loss'];
         $stockOverageGain = $stockAdjustments['overage_gain'];
         $stockNetAdjustment = $stockOverageGain - $stockShortageLoss;
         $netProfit = $grossProfit - $totalExpenses - $cashShortageLoss + $cashOverageGain - $stockShortageLoss + $stockOverageGain;
 
         return view('backend.report.summary_ledger', compact(
+            'outlets',
+            'outletId',
+            'selectedOutlet',
+            'fromDate',
+            'toDate',
+            'includePurchases',
             'totalPurchases',
             'currentStockValue',
             'totalExpenses',
@@ -623,6 +773,14 @@ class ReportController extends Controller
     {
         $query = CashReconciliation::query()->where('status', 'approved');
 
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : (($request && $request->filled('outlet_id')) ? (int) $request->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('outlet_id', $outletId);
+        }
+
         if ($request) {
             if ($fromDate = $request->get('from_date')) {
                 $query->whereDate('business_date', '>=', $fromDate);
@@ -656,6 +814,14 @@ class ReportController extends Controller
         $query = StockLedger::query()
             ->where('reference_type', 'stock_adjustment')
             ->whereIn('movement_type', ['adjustment_increase', 'adjustment_decrease']);
+
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : (($request && $request->filled('outlet_id')) ? (int) $request->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('outlet_id', $outletId);
+        }
 
         if ($request) {
             if ($fromDate = $request->get('from_date')) {
@@ -695,6 +861,16 @@ class ReportController extends Controller
         array $allowedStatuses = [PaymentStatus::FULL_PAYMENT, PaymentStatus::PARTIAL_PAYMENT]
     ): void
     {
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($request->filled('outlet_id') ? (int) $request->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->whereIn("{$paymentsTable}.sale_id", function ($sub) use ($outletId) {
+                $sub->select('id')->from('sales')->where('outlet_id', $outletId);
+            });
+        }
+
         if ($saleId = $request->get('sale_id')) {
             $query->where("{$detailsTable}.sale_id", $saleId);
         }

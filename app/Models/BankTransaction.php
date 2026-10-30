@@ -20,4 +20,9 @@ class BankTransaction extends Model
     {
         return $this->belongsTo(BankAccount::class, 'bank_account_id');
     }
+
+    public function journal()
+    {
+        return $this->belongsTo(AccountingJournal::class, 'journal_id');
+    }
 }

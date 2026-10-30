@@ -32,14 +32,21 @@ class CreditPurchasesDataTable extends DataTable
             ->addColumn('paid_amount_formatted', function ($row) {
                 return number_format((float) $row->paid_amount, 2);
             })
+            ->addColumn('outlet_name', function () {
+                return '<span class="badge bg-primary">Central Warehouse</span>';
+            })
             ->addColumn('amount_formatted', function ($row) {
                 return number_format((float) $row->total_amount, 2);
             })
             ->addColumn('action', function ($row) {
+                $user = auth()->user();
+                if ($user && ! $user->isCentral()) {
+                    return '<span class="text-muted small">Central HQ Only</span>';
+                }
                 $url = route('supplier.edit.purchase', $row->purchase_id);
                 return '<a href="' . $url . '" class="btn btn-info btn-sm text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;" title="Pay Invoice">Pay Invoice</a>';
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['outlet_name', 'action'])
             ->setRowId('id');
     }
 
@@ -98,6 +105,7 @@ class CreditPurchasesDataTable extends DataTable
         return [
             Column::make('purchase_no')->title('Purchase No'),
             Column::make('supplier_name')->title('Supplier Name'),
+            Column::make('outlet_name')->title('Warehouse / Station')->searchable(false),
             Column::make('purchase_date')->title('Date')->searchable(false),
             Column::make('amount_formatted')->title('Total Amount (Gh¢)')->searchable(false),
             Column::make('paid_amount_formatted')->title('Partial Payment (Gh¢)')->searchable(false),

@@ -7,71 +7,92 @@ use Illuminate\Support\Facades\Crypt;
 
 @section('content')
 
- <script src="{{ asset('backend/assets/libs/jquery/jquery.min.js') }}"></script>
-
 <div class="page-content">
 <div class="container-fluid">
 
     <div class="row">
-        <div class="col-12">
+        <div class="col-12 col-xl-10 mx-auto">
             <div class="card">
-                <div class="card-header with-border">
-                    <span class="card-title" style="font-size:20px;">Edit | Product Price </span>
+                <div class="card-header with-border d-flex align-items-center justify-content-between">
+                    <span class="card-title" style="font-size:20px;">Edit | Master Product Price</span>
 
-                    <a href="{{route('product-prices.index')}}" style="float:right">
+                    <a href="{{ route('product-prices.index') }}">
                         <button type="button" class="btn btn-primary modal_btn">
                             View Product Prices
                         </button>
                     </a>
+                </div>
 
-                    <hr>
-
-                    <div class="card-body">
-
-                        <form action="{{ route('product-prices.update', $encryptedId) }}" method="POST" id="myForm" enctype="multipart/form-data">
-                            @csrf
-                            @method('PATCH')  {{-- Using PATCH method --}}
-
-                            {{-- backend error alerts --}}
-                            <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
-                                <button type="button" class="close h-100" data-dismiss="alert" aria-label="Close">
-                                    <span><i class="mdi mdi-close"></i></span>
-                                </button>
-                                <ul id="errors"></ul>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="product_name"><strong>Product Name</strong></label>
-                                        <input type="text" id="product_name" class="form-control" value="{{ $product->name }}" readonly>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="cost_price"><strong>Cost Price <span class="text-danger">*</span></strong></label>
-                                        <input type="text" id="cost_price" name="cost_price" class="form-control" value="{{ old('cost_price', $product->cost_price) }}" placeholder="Enter cost price">
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="selling_price"><strong>Selling Price <span class="text-danger">*</span></strong></label>
-                                        <input type="text" id="selling_price" name="selling_price" class="form-control" value="{{ old('selling_price', $product->selling_price) }}" placeholder="Enter selling price">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-success mt-3">Update Product Price</button>
-                                </div>
-                            </div>
-
-                        </form>
-
+                <div class="card-body">
+                    <div class="alert alert-info d-flex align-items-center mb-3">
+                        <i class="fas fa-tags fa-lg mr-2 me-2"></i>
+                        <div>
+                            <strong>Central Master Pricing:</strong> Updating prices here updates the master catalog enterprise-wide. The selling price applies immediately to all retail branches, POS terminals, and sales transactions.
+                        </div>
                     </div>
+
+                    <form action="{{ route('product-prices.update', $encryptedId) }}" method="POST" id="myForm" enctype="multipart/form-data">
+                        @csrf
+                        @method('PATCH')
+
+                        {{-- backend error alerts --}}
+                        <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
+                            <button type="button" class="close h-100" data-dismiss="alert" aria-label="Close">
+                                <span><i class="mdi mdi-close"></i></span>
+                            </button>
+                            <ul id="errors"></ul>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <div class="form-group mb-3">
+                                    <label for="product_name"><strong>Product Name</strong></label>
+                                    <input type="text" id="product_name" class="form-control" value="{{ $product->name }}" readonly style="background-color: #f8f9fa;">
+                                    <small class="text-muted">Master product registered in central catalog.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="cost_price"><strong>Cost Price <span class="text-danger">*</span></strong></label>
+                                    <input type="number" step="0.01" id="cost_price" name="cost_price" class="form-control" value="{{ old('cost_price', $product->cost_price) }}" placeholder="Enter cost price" min="0">
+                                    <small class="text-muted">Standard baseline purchasing / landed cost.</small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="selling_price"><strong>Selling Price <span class="text-danger">*</span></strong></label>
+                                    <input type="number" step="0.01" id="selling_price" name="selling_price" class="form-control" value="{{ old('selling_price', $product->selling_price) }}" placeholder="Enter selling price" min="0">
+                                    <small class="text-muted">Enterprise retail selling price across all POS stations.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-2">
+                            <div class="col-12">
+                                <div class="p-3 rounded bg-light border d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <span class="text-muted font-size-13 d-block">Estimated Margin Preview:</span>
+                                        <strong id="marginPreviewText" class="text-success font-size-15">Calculating...</strong>
+                                    </div>
+                                    <span class="badge" id="marginBadge" style="background-color: #0F766E; color:#fff; font-size:13px; padding: 6px 12px;">Active Margin</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-12 text-center">
+                                <button type="submit" class="btn btn-primary mt-3" style="background-color: #0F766E; border-color: #0F766E; padding: 8px 26px;">
+                                    <i class="fas fa-save mr-1 me-1"></i> Update Product Price
+                                </button>
+                            </div>
+                        </div>
+
+                    </form>
+
                 </div>
             </div>
         </div>
@@ -89,12 +110,15 @@ use Illuminate\Support\Facades\Crypt;
         border-radius: 15px;
         overflow: hidden;
         transform: translateY(0);
+        background: linear-gradient(145deg, #ffffff, #f0f0f0);
+        border: none;
     }
 
     .card:hover {
         box-shadow: 0 8px 25px 0 rgba(0, 0, 0, 0.3);
         transform: translateY(-5px);
         border-radius: 20px;
+        background: linear-gradient(145deg, #f8f9fa, #e9ecef);
     }
 
     .card::before {
@@ -118,15 +142,6 @@ use Illuminate\Support\Facades\Crypt;
         z-index: 2;
     }
 
-    .card {
-        background: linear-gradient(145deg, #ffffff, #f0f0f0);
-        border: none;
-    }
-
-    .card:hover {
-        background: linear-gradient(145deg, #f8f9fa, #e9ecef);
-    }
-
     .is-invalid {
         border-color: #dc3545;
         box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
@@ -141,8 +156,8 @@ use Illuminate\Support\Facades\Crypt;
     }
     
     .form-control:focus {
-        border-color: #80bdff;
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        border-color: #0F766E;
+        box-shadow: 0 0 0 0.2rem rgba(15, 118, 110, 0.2);
     }
     
     .form-control.is-invalid:focus {
@@ -155,17 +170,68 @@ use Illuminate\Support\Facades\Crypt;
 @section('scripts')
 <script type="text/javascript">
     $(document).ready(function (){
+
+        function updateMarginPreview() {
+            var cost = parseFloat($('#cost_price').val()) || 0;
+            var selling = parseFloat($('#selling_price').val()) || 0;
+            var profit = selling - cost;
+            var marginPercent = selling > 0 ? ((profit / selling) * 100).toFixed(1) : 0;
+
+            if (profit < 0) {
+                $('#marginPreviewText').html('<span class="text-danger">Loss: ' + profit.toFixed(2) + ' (' + marginPercent + '%)</span>');
+                $('#marginBadge').removeClass('bg-success').addClass('bg-danger').text('Negative Margin');
+            } else {
+                $('#marginPreviewText').html('<span class="text-success">Profit: ' + profit.toFixed(2) + ' (' + marginPercent + '%)</span>');
+                $('#marginBadge').removeClass('bg-danger').addClass('bg-success').text('Markup Margin');
+            }
+        }
+
+        $('#cost_price, #selling_price').on('input change', updateMarginPreview);
+        updateMarginPreview();
        
         // Handle form submission
         $('#myForm').on('submit', function(e) {
             e.preventDefault();
 
+            var costVal = $('#cost_price').val().trim();
+            var sellingVal = $('#selling_price').val().trim();
+
             // Client-side validation
-            if(!$('#cost_price').val().trim() || !$('#selling_price').val().trim()) {
+            if(!costVal || !sellingVal) {
                 if (typeof Notiflix !== 'undefined') {
                     Notiflix.Notify.failure('Please enter cost and selling prices');
                 } else {
                     alert('Please enter cost and selling prices');
+                }
+                return;
+            }
+
+            var cost = parseFloat(costVal);
+            var selling = parseFloat(sellingVal);
+
+            if (isNaN(cost) || cost < 0) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Cost price must be a valid non-negative number');
+                } else {
+                    alert('Cost price must be a valid non-negative number');
+                }
+                return;
+            }
+
+            if (isNaN(selling) || selling < 0) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Selling price must be a valid non-negative number');
+                } else {
+                    alert('Selling price must be a valid non-negative number');
+                }
+                return;
+            }
+
+            if (selling < cost) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Selling price must be greater than or equal to cost price');
+                } else {
+                    alert('Selling price must be greater than or equal to cost price');
                 }
                 return;
             }
@@ -177,24 +243,19 @@ use Illuminate\Support\Facades\Crypt;
                 console.log('Updating product price...');
             }
 
-            // Create FormData and manually add _method for PATCH
             var formData = new FormData(this);
-            
-            // Ensure _method is set to PATCH
             formData.set('_method', 'PATCH');
 
             $.ajax({
                 url: $(this).attr('action'),
-                type: 'POST',  // Always POST for Laravel
+                type: 'POST',
                 data: formData,
                 contentType: false,
                 processData: false,
                 headers: {
-                    'X-HTTP-Method-Override': 'PATCH'  // Additional header for PATCH
+                    'X-HTTP-Method-Override': 'PATCH'
                 },
                 success: function(data) {
-                    console.log('Success response:', data);
-                    
                     if (typeof Notiflix !== 'undefined') {
                         Notiflix.Loading.remove();
                     }
@@ -218,10 +279,6 @@ use Illuminate\Support\Facades\Crypt;
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.log('Error response:', xhr.responseText);
-                    console.log('Status:', status);
-                    console.log('Error:', error);
-                    
                     if (typeof Notiflix !== 'undefined') {
                         Notiflix.Loading.remove();
                     }
@@ -243,12 +300,13 @@ use Illuminate\Support\Facades\Crypt;
                         }, 500);
                     } else {
                         $('#errorAlert').show();
-                        $('#errors').append('<li>Server Error: ' + (xhr.responseText || 'An error occurred. Please try again later.') + '</li>');
+                        var errMsg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.responseText || 'An error occurred. Please try again later.');
+                        $('#errors').append('<li>' + errMsg + '</li>');
                         
                         if (typeof Notiflix !== 'undefined') {
-                            Notiflix.Notify.failure('An error occurred. Please try again later.');
+                            Notiflix.Notify.failure(errMsg);
                         } else {
-                            alert('An error occurred: ' + xhr.responseText);
+                            alert(errMsg);
                         }
                     }
                 }

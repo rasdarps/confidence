@@ -13,66 +13,99 @@ use Illuminate\Support\Facades\Crypt;
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header with-border d-flex justify-content-between align-items-center">
-                        <span class="card-title" style="font-size:20px;">
-                            <i class="fas fa-boxes"></i> Products Management
+                    <div class="card-header with-border d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+                        <span class="card-title mb-0" style="font-size:18px; font-weight: 600; color: #034141;">
+                            <i class="fas fa-boxes mr-1 me-1" style="color: #0F766E;"></i> Products Management
                         </span>
-                        <div>
-                            <a href="{{route('products.create')}}" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Create New Product
-                            </a>
-                            <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#productImportModal">
-                                <i class="fas fa-file-excel"></i> Import Excel
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            @if(auth()->user()->isCentral() && auth()->user()->can('product-create'))
+                                <a href="{{route('products.create')}}" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 shadow-sm px-3" style="font-size: 13px; height: 34px; border-radius: 6px;">
+                                    <i class="fas fa-plus"></i> <span>Create Product</span>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#productImportModal" style="font-size: 13px; height: 34px; border-radius: 6px;">
+                                    <i class="fas fa-file-excel"></i> <span>Import Excel</span>
+                                </button>
+                            @else
+                                <span class="badge bg-secondary py-2 px-3" style="font-size: 12px;"><i class="fas fa-store me-1"></i> {{ auth()->user()->outlet->name ?? 'Outlet Branch' }}: Catalog View</span>
+                            @endif
+                            <button type="button" class="btn btn-sm btn-dark d-inline-flex align-items-center gap-1 shadow-sm px-3" id="print-barcodes-btn" style="display: none; font-size: 13px; height: 34px; border-radius: 6px;">
+                                <i class="fas fa-barcode"></i> <span>Print Labels</span>
                             </button>
-                            <button type="button" class="btn btn-dark" id="print-barcodes-btn" style="display: none;">
-                                <i class="fas fa-barcode"></i> Print Labels
-                            </button>
-                            <small id="selected-products-hint" class="text-muted ml-2" style="display:none;"></small>
+                            <small id="selected-products-hint" class="text-muted ml-2" style="display:none; font-size: 12px;"></small>
                         </div>
                     </div>
                     
                     <div class="card-body">
+                        <div class="alert alert-info d-flex align-items-center mb-3">
+                            <i class="fas fa-boxes fa-lg mr-3 me-2"></i>
+                            <div>
+                                <strong>Central Product Catalog:</strong> Master products, barcodes, and units are centrally managed at Headquarters. Stock is held across Central Warehouse and retail outlets, and moved between stations via stock transfers.
+                            </div>
+                        </div>
+
                         <!-- Filter Section -->
-                        <div class="filter-section">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>Category</label>
+                        <div class="filter-section mb-3 p-3 rounded" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                            <div class="row align-items-end g-2">
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="form-group mb-0">
+                                        <label class="small text-muted font-weight-bold mb-1">Category</label>
                                         <select id="filter-category" class="form-control select2">
-                                            <option value="">All</option>
+                                            <option value="">All Categories</option>
                                             @foreach($categories as $category)
                                                 <option value="{{ $category->id }}">{{ $category->name }}</option>
                                             @endforeach
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-md-2">
-                                    <div class="form-group">
-                                        <label>Stock Status</label>
-                                        <select id="filter-stock" class="form-control">
-                                            <option value="">All</option>
+                                @if(auth()->user()->isCentral() && isset($outlets))
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="form-group mb-0">
+                                        <label class="small text-muted font-weight-bold mb-1">Outlet Station</label>
+                                        <select id="filter-outlet" class="form-control select2">
+                                            <option value="">All Outlets (Enterprise)</option>
+                                            @foreach($outlets as $outlet)
+                                                <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                @endif
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="form-group mb-0">
+                                        <label class="small text-muted font-weight-bold mb-1">Stock Status</label>
+                                        <select id="filter-stock" class="form-control" style="height: 38px;">
+                                            <option value="">All Statuses</option>
                                             <option value="in_stock">In Stock</option>
                                             <option value="low_stock">Low Stock</option>
                                             <option value="out_of_stock">Out of Stock</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-md-2">
-                                    
-                                        <label>Filter Records</label>
-                                        <button type="button" class="btn btn-dark btn-filter btn-block" id="apply-filters">
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-dark flex-fill d-inline-flex align-items-center justify-content-center gap-1 shadow-sm" id="apply-filters" style="background:#034141; border-color:#034141; height: 38px; font-size: 13px; font-weight: 500; border-radius: 6px;">
                                             <i class="fas fa-filter"></i> Filter
                                         </button>
-                                    
+                                        <button type="button" class="btn btn-sm btn-outline-secondary flex-fill d-inline-flex align-items-center justify-content-center gap-1" id="btn-reset-filters" title="Reset all filters" style="height: 38px; font-size: 13px; font-weight: 500; border-radius: 6px;">
+                                            <i class="fas fa-undo-alt"></i> Reset
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Filter Summary -->
-                        <div id="filter-summary" class="filter-summary">
-                            <i class="fas fa-info-circle"></i> Active Filters:
-                            <span id="filter-summary-text"></span>
-                            <button class="btn btn-sm btn-link" id="clear-filters">Clear All</button>
+                        <div id="filter-summary" class="filter-summary" style="display: none;">
+                            <div class="d-flex align-items-center flex-wrap gap-2 flex-grow-1">
+                                <span class="filter-summary-label">
+                                    <i class="fas fa-filter text-teal me-1" style="color: #0F766E;"></i>
+                                    Active Filters:
+                                </span>
+                                <span id="filter-summary-text" class="d-flex flex-wrap gap-1 align-items-center"></span>
+                            </div>
+                            <button type="button" class="btn-clear-all" id="clear-filters">
+                                <i class="fas fa-times-circle"></i> Clear All
+                            </button>
                         </div>
                         
                         <!-- Products Table -->
@@ -89,26 +122,24 @@ use Illuminate\Support\Facades\Crypt;
 
 <div class="modal fade" id="productViewModal" tabindex="-1" role="dialog" aria-labelledby="productViewModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="productViewModalLabel">
-                    <i class="fas fa-box"></i> Product Details
+        <div class="modal-content" style="border-radius: 12px; overflow: hidden; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.18);">
+            <div class="modal-header" style="background: linear-gradient(135deg, #034141 0%, #0F766E 100%); color: #fff; padding: 14px 20px;">
+                <h5 class="modal-title font-weight-bold d-flex align-items-center mb-0" id="productViewModalLabel" style="color: #fff; font-size: 16px;">
+                    <i class="fas fa-boxes mr-2 me-2"></i> Product Master Overview
                 </h5>
-                <a type="button" data-bs-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </a>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" style="filter: brightness(0) invert(1); opacity: 0.85;"></button>
             </div>
-            <div class="modal-body" id="product-details-content">
+            <div class="modal-body p-3" id="product-details-content">
                 <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
+                    <div class="spinner-border" role="status" style="color: #0F766E;">
                         <span class="sr-only">Loading...</span>
                     </div>
-                    <p class="mt-2">Loading product details...</p>
+                    <p class="mt-2 text-muted">Loading product details...</p>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times"></i> Close
+            <div class="modal-footer py-2 px-3" style="background: #f8fafc;">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Close
                 </button>
             </div>
         </div>
@@ -290,22 +321,32 @@ use Illuminate\Support\Facades\Crypt;
             
             // Get current filter values
             var categoryId = $('#filter-category').val();
+            var outletId = $('#filter-outlet').val();
             var stock = $('#filter-stock').val();
             
             // Get selected text for display
             var categoryName = $('#filter-category option:selected').text();
+            var outletName = $('#filter-outlet option:selected').text();
             var stockText = $('#filter-stock option:selected').text();
             
             // Build filter badges
             if (categoryId && categoryId !== '') {
-                filters.push('<span class="badge badge-primary mr-1 mb-1">Category: ' + categoryName + '</span>');
+                filters.push('<span class="badge" style="background:#0F766E; color:#fff;"><i class="fas fa-sitemap me-1"></i> Category: ' + categoryName + '</span>');
+            }
+            if (outletId && outletId !== '') {
+                filters.push('<span class="badge" style="background:#034141; color:#fff;"><i class="fas fa-warehouse me-1"></i> Station: ' + outletName + '</span>');
             }
             if (stock && stock !== '') {
-                var stockClass = '';
-                if (stock == 'in_stock') stockClass = 'badge-success';
-                else if (stock == 'low_stock') stockClass = 'badge-warning';
-                else if (stock == 'out_of_stock') stockClass = 'badge-danger';
-                filters.push('<span class="badge ' + stockClass + ' mr-1 mb-1">Stock: ' + stockText + '</span>');
+                var stockBg = '#10B981';
+                var stockIcon = 'fas fa-check-circle';
+                if (stock == 'low_stock') {
+                    stockBg = '#F59E0B';
+                    stockIcon = 'fas fa-exclamation-triangle';
+                } else if (stock == 'out_of_stock') {
+                    stockBg = '#EF4444';
+                    stockIcon = 'fas fa-times-circle';
+                }
+                filters.push('<span class="badge text-white" style="background:' + stockBg + ';"><i class="' + stockIcon + ' me-1"></i> Stock: ' + stockText + '</span>');
             }
             
             // Update the summary display
@@ -329,7 +370,7 @@ use Illuminate\Support\Facades\Crypt;
             table.on('preXhr.dt', function(e,settings,data){
                 data.category_id = $('#filter-category').val() || '';
                 data.stock_filter = $('#filter-stock').val() || '';
-            
+                data.outlet_id = $('#filter-outlet').val() || '';
             });
             
           
@@ -466,31 +507,57 @@ use Illuminate\Support\Facades\Crypt;
             .prop('type', 'text/css')
             .html(`
                 .filter-summary {
-                    background: #f8f9fa;
-                    padding: 10px 15px;
-                    border-radius: 4px;
-                    margin-bottom: 20px;
-                    border-left: 3px solid #007bff;
+                    background: linear-gradient(135deg, #f0fdfa 0%, #f8fafc 100%);
+                    padding: 6px 14px;
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                    border: 1px solid #ccfbf1;
+                    border-left: 3px solid #0F766E;
+                    box-shadow: 0 1px 4px rgba(15, 118, 110, 0.05);
                     display: flex;
                     align-items: center;
+                    justify-content: space-between;
                     flex-wrap: wrap;
                     gap: 8px;
                 }
-                .filter-summary .badge {
-                    padding: 5px 8px;
+                .filter-summary-label {
                     font-size: 12px;
-                    margin-right: 5px;
+                    color: #034141;
+                    font-weight: 600;
+                    margin-right: 4px;
                 }
-                .filter-summary .btn-link {
-                    padding: 0;
-                    margin-left: 10px;
+                .filter-summary .badge {
+                    padding: 4px 10px;
+                    font-size: 11px;
+                    font-weight: 500;
+                    border-radius: 12px;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
                 }
-                .badge-primary { background-color: #007bff; color: white; }
-                .badge-success { background-color: #28a745; color: white; }
-                .badge-danger { background-color: #dc3545; color: white; }
-                .badge-warning { background-color: #ffc107; color: #212529; }
-                .badge-info { background-color: #17a2b8; color: white; }
-                .badge-secondary { background-color: #6c757d; color: white; }
+                .btn-clear-all {
+                    background: #ffffff;
+                    color: #b91c1c;
+                    border: 1px solid #fca5a5;
+                    padding: 3px 10px;
+                    border-radius: 14px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    line-height: 1.4;
+                    transition: all 0.15s ease-in-out;
+                }
+                .btn-clear-all:hover {
+                    background: #dc2626;
+                    color: #ffffff;
+                    border-color: #dc2626;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2);
+                }
             `)
             .appendTo('head');
         
@@ -553,8 +620,9 @@ use Illuminate\Support\Facades\Crypt;
         });
         
         // Clear filters button
-        $('#clear-filters').on('click', function() {
+        $('#clear-filters, #btn-reset-filters').on('click', function() {
             $('#filter-category').val('').trigger('change');
+            $('#filter-outlet').val('').trigger('change');
             $('#filter-stock').val('');
             applyFilters();
         });

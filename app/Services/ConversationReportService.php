@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseVoucherItem;
+use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\PurchasePayment;
@@ -35,19 +36,57 @@ class ConversationReportService
         'bank_transactions' => 'bank-transaction-list',
     ];
 
-    public function answer(User $user, array $report): array
+    public function answer(User $user, array $report, ?int $requestOutletId = null): array
     {
         $intent = $report['intent'];
         abort_unless(isset(self::PERMISSIONS[$intent]) && $user->can(self::PERMISSIONS[$intent]), 403, 'You do not have permission for this report.');
+
+        // Determine multi-outlet scope
+        $canFilterOutlets = $user->isCentral() || $user->can('dashboard-outlet-filter') || $user->hasRole('Super Admin');
+        $assignedOutletId = $user->assignedOutletId() ?? ($user->outlet_id ? (int) $user->outlet_id : null);
+
+        if (!$canFilterOutlets && $assignedOutletId) {
+            if (!empty($report['outlet'])) {
+                $requestedId = $this->entity(Outlet::class, $report['outlet']);
+                if ($requestedId !== $assignedOutletId) {
+                    $branchName = $user->outlet ? $user->outlet->name : 'your assigned branch';
+                    throw new InvalidArgumentException("You are scoped to {$branchName}. You cannot access reports for other outlets.");
+                }
+            }
+            $effectiveOutletId = $assignedOutletId;
+        } else {
+            if (!empty($report['outlet'])) {
+                $effectiveOutletId = $this->entity(Outlet::class, $report['outlet']);
+            } elseif ($requestOutletId) {
+                $effectiveOutletId = (int) $requestOutletId;
+            } else {
+                $effectiveOutletId = null;
+            }
+        }
+
+        $outletRecord = $effectiveOutletId ? Outlet::find($effectiveOutletId) : null;
+        if ($effectiveOutletId && !$outletRecord) {
+            throw new InvalidArgumentException('The specified outlet was not found.');
+        }
+
+        if ($outletRecord) {
+            $report['location'] = $outletRecord->code ? "{$outletRecord->name} ({$outletRecord->code})" : $outletRecord->name;
+            $report['outlet'] = $outletRecord->name;
+        } else {
+            $report['location'] = 'All Outlets & Central HQ (Consolidated)';
+            unset($report['outlet']);
+        }
+
         $allowedFilters = match ($intent) {
-            'sales', 'collections', 'customer_balance' => ['customer'],
-            'purchases', 'supplier_balance', 'supplier_payments' => ['supplier'],
-            'expenses' => ['category'],
-            'bank_balances', 'bank_transactions' => ['account'],
-            'stock_balance', 'stock_value' => ['product', 'category'],
+            'sales', 'collections', 'customer_balance' => ['customer', 'outlet'],
+            'purchases', 'supplier_balance', 'supplier_payments' => ['supplier', 'outlet'],
+            'expenses' => ['category', 'outlet'],
+            'bank_balances', 'bank_transactions' => ['account', 'outlet'],
+            'stock_balance', 'stock_value' => ['product', 'category', 'outlet'],
+            'low_stock', 'top_products' => ['outlet'],
             default => [],
         };
-        foreach (['customer', 'supplier', 'category', 'account', 'product'] as $filter) {
+        foreach (['customer', 'supplier', 'category', 'account', 'product', 'outlet'] as $filter) {
             if (!empty($report[$filter]) && !in_array($filter, $allowedFilters, true)) {
                 throw new InvalidArgumentException('That filter is not supported for this report. Start a new question with the report and date range.');
             }
@@ -76,11 +115,16 @@ class ConversationReportService
         if (in_array($intent, ['bank_balances', 'low_stock', 'stock_balance', 'stock_value'], true) && !empty($report['date_requested']) && ($report['from'] !== now()->toDateString() || $report['to'] !== now()->toDateString())) {
             throw new InvalidArgumentException('This report shows current recorded balances or stock. Historical snapshots are not available.');
         }
-        $result = $this->run($report);
+        $result = $this->run($report, $effectiveOutletId);
+        if ($effectiveOutletId) {
+            $result['notes'][] = "Scoped strictly to location: {$report['location']}.";
+        } else {
+            $result['notes'][] = 'Consolidated enterprise data across all outlets and central warehouse.';
+        }
         if (!empty($report['compare'])) {
             $previous = $report;
             [$previous['from'], $previous['to']] = $report['comparison'];
-            $comparison = $this->run($previous);
+            $comparison = $this->run($previous, $effectiveOutletId);
             $result['comparison'] = [
                 'period' => $this->period($previous),
                 'metrics' => $comparison['metrics'],
@@ -92,19 +136,19 @@ class ConversationReportService
         return $result;
     }
 
-    private function run(array $report): array
+    private function run(array $report, ?int $outletId = null): array
     {
         return match ($report['intent']) {
-            'sales', 'purchases', 'customer_balance', 'supplier_balance' => $this->invoices($report),
-            'collections', 'supplier_payments' => $this->collections($report),
-            'expenses' => $this->expenses($report),
-            'low_stock', 'top_products' => $this->stock($report),
-            'stock_balance', 'stock_value' => $this->stockBalance($report),
-            'bank_balances', 'bank_transactions' => $this->banking($report),
+            'sales', 'purchases', 'customer_balance', 'supplier_balance' => $this->invoices($report, $outletId),
+            'collections', 'supplier_payments' => $this->collections($report, $outletId),
+            'expenses' => $this->expenses($report, $outletId),
+            'low_stock', 'top_products' => $this->stock($report, $outletId),
+            'stock_balance', 'stock_value' => $this->stockBalance($report, $outletId),
+            'bank_balances', 'bank_transactions' => $this->banking($report, $outletId),
         };
     }
 
-    private function invoices(array $report): array
+    private function invoices(array $report, ?int $outletId = null): array
     {
         $purchase = in_array($report['intent'], ['purchases', 'supplier_balance'], true);
         $balance = in_array($report['intent'], ['customer_balance', 'supplier_balance'], true);
@@ -115,6 +159,9 @@ class ConversationReportService
         $query = ($purchase ? PurchasePayment::query() : Payment::query())
             ->join($parent, $parent.'.id', '=', $table.'.'.$foreign)
             ->whereNull($parent.'.deleted_at')->whereNull($parent.'.cancelled_at');
+        if (!$purchase && $outletId) {
+            $query->where($parent.'.outlet_id', $outletId);
+        }
         if (!$balance) {
             $this->range($query, $parent.'.date', $report);
         } elseif (!empty($report['date_requested'])) {
@@ -143,6 +190,9 @@ class ConversationReportService
                 ->map(fn ($row) => [$row->name ?? 'Unassigned', number_format((float) $row->amount, 2)])->all();
         }
         $notes = ['Cancelled and deleted invoices are excluded.'];
+        if ($purchase && $outletId) {
+            $notes[] = 'Purchases and supplier payables are managed centrally at Central HQ.';
+        }
         if ($balance) {
             $notes[] = 'Outstanding amounts are current, not historical balances. A date range filters invoice dates, not the date the debt was outstanding.';
         } else {
@@ -152,10 +202,10 @@ class ConversationReportService
             $notes[] = 'Credit includes partially paid and full-credit invoices using their current payment status.';
         }
         $route = $balance ? ($purchase ? 'credit.supplier' : 'credit.customer') : ($purchase ? 'purchases.index' : 'sales.index');
-        return $this->result($report, $balance ? ucfirst($entity).' balances' : ucfirst($parent), $metrics, [ucfirst($entity), $balance ? 'Outstanding' : 'Invoice total'], $rows, $notes, $route, $balance && empty($report['date_requested']) ? 'Current, all invoice dates' : null);
+        return $this->result($report, $balance ? ucfirst($entity).' balances' : ucfirst($parent), $metrics, [ucfirst($entity), $balance ? 'Outstanding' : 'Invoice total'], $rows, $notes, $route, $balance && empty($report['date_requested']) ? 'Current, all invoice dates' : null, $outletId);
     }
 
-    private function collections(array $report): array
+    private function collections(array $report, ?int $outletId = null): array
     {
         $purchase = $report['intent'] === 'supplier_payments';
         $details = $purchase ? 'purchase_payment_details' : 'payment_details';
@@ -166,6 +216,9 @@ class ConversationReportService
         $query = DB::table($details)->join($payments, $payments.'.'.$foreign, '=', $details.'.'.$foreign)
             ->join($parent, $parent.'.id', '=', $details.'.'.$foreign)->whereNull($parent.'.deleted_at')->whereNull($parent.'.cancelled_at');
         $this->range($query, $details.'.date', $report);
+        if (!$purchase && $outletId) {
+            $query->where($parent.'.outlet_id', $outletId);
+        }
         if ($id = $this->entity($purchase ? Supplier::class : Customer::class, $report[$entity] ?? null)) {
             $query->where($payments.'.'.$entity.'_id', $id);
         }
@@ -180,15 +233,22 @@ class ConversationReportService
                 ->groupBy($payments.'.'.$entity.'_id', $entity.'s.name')->orderByDesc('amount')->limit(50)->get()
                 ->map(fn ($row) => [$row->name ?? 'Unassigned', number_format((float) $row->amount, 2)])->all();
         }
+        $notes = ['Filtered by payment date, including payments against older invoices. Cancelled and deleted invoices are excluded.'];
+        if ($purchase && $outletId) {
+            $notes[] = 'Supplier payments are managed centrally at Central HQ.';
+        }
         return $this->result($report, $purchase ? 'Supplier payments' : 'Sales collections', [$purchase ? 'Money paid' : 'Money collected' => $total], [ucfirst($entity), $purchase ? 'Paid' : 'Collected'], $rows,
-            ['Filtered by payment date, including payments against older invoices. Cancelled and deleted invoices are excluded.'], $purchase ? 'reports.purchase-cash-movement' : 'reports.sales-cash-movement');
+            $notes, $purchase ? 'reports.purchase-cash-movement' : 'reports.sales-cash-movement', null, $outletId);
     }
 
-    private function expenses(array $report): array
+    private function expenses(array $report, ?int $outletId = null): array
     {
         $query = ExpenseVoucherItem::query()->join('expense_vouchers', 'expense_vouchers.id', '=', 'expense_voucher_items.expense_voucher_id')
             ->whereNull('expense_vouchers.deleted_at');
         $this->range($query, 'expense_vouchers.voucher_date', $report);
+        if ($outletId) {
+            $query->where('expense_vouchers.outlet_id', $outletId);
+        }
         if ($id = $this->entity(ExpenseCategory::class, $report['category'] ?? null)) {
             $query->where('expense_voucher_items.expense_category_id', $id);
         }
@@ -198,30 +258,41 @@ class ConversationReportService
             ->groupBy('expense_voucher_items.expense_category_id', 'expense_categories.name')->orderByDesc('amount')->limit(50)->get()
             ->map(fn ($row) => [$row->name ?? 'Unassigned', number_format((float) $row->amount, 2)])->all();
         return $this->result($report, 'Expenses', ['Expense total' => $total], ['Category', 'Amount'], $rows,
-            ['Filtered by voucher date. Deleted vouchers and items are excluded.'], 'expense-vouchers.index');
+            ['Filtered by voucher date. Deleted vouchers and items are excluded.'], 'expense-vouchers.index', null, $outletId);
     }
 
-    private function stock(array $report): array
+    private function stock(array $report, ?int $outletId = null): array
     {
         if ($report['intent'] === 'low_stock') {
-            $query = Product::query()->whereColumn('quantity', '<=', 'stock_level');
+            $query = Product::with(['outletStocks' => function ($q) use ($outletId) {
+                if ($outletId) $q->where('outlet_id', $outletId);
+            }])->lowStock($outletId);
+
             $count = (clone $query)->count();
-            $rows = $query->orderBy('quantity')->limit(50)->get(['name', 'quantity', 'stock_level'])
-                ->map(fn ($row) => [$row->name, $row->quantity, $row->stock_level])->all();
+            $rows = $query->orderBy('name')->limit(50)->get(['id', 'name'])
+                ->map(function ($row) use ($outletId) {
+                    $stock = $outletId ? $row->stockForOutlet($outletId) : null;
+                    $qty = $outletId ? ($stock ? (float) $stock->quantity : 0) : $row->quantity;
+                    $threshold = $outletId ? ($stock ? (float) $stock->stock_level : 0) : $row->stock_level;
+                    return [$row->name, $qty, $threshold];
+                })->all();
             return $this->result($report, 'Low stock', ['Products at or below threshold' => $count], ['Product', 'Quantity', 'Threshold'], $rows,
-                ['Current stock, including out-of-stock products; not a historical snapshot.'], 'stock.report', 'Current stock');
+                ['Current stock, including out-of-stock products; not a historical snapshot.'], 'stock.report', 'Current stock', $outletId);
         }
         $query = DB::table('sale_details')->join('sales', 'sales.id', '=', 'sale_details.sale_id')
             ->join('products', 'products.id', '=', 'sale_details.product_id')->whereNull('sales.deleted_at')->whereNull('sales.cancelled_at')->whereNull('products.deleted_at');
         $this->range($query, 'sales.date', $report);
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
         $rows = $query->selectRaw('products.id, products.name, SUM(sale_details.selling_qty) as quantity')
             ->groupBy('products.id', 'products.name')->orderByDesc('quantity')->limit(10)->get()
             ->map(fn ($row) => [$row->name, (float) $row->quantity])->all();
         return $this->result($report, 'Best-selling products', [], ['Product', 'Units sold'], $rows,
-            ['Top 10 by quantity sold, not revenue. Quantities may use different product units. Cancelled and deleted sales are excluded.'], 'reports.sales-lines');
+            ['Top 10 by quantity sold, not revenue. Quantities may use different product units. Cancelled and deleted sales are excluded.'], 'reports.sales-lines', null, $outletId);
     }
 
-    private function stockBalance(array $report): array
+    private function stockBalance(array $report, ?int $outletId = null): array
     {
         $value = $report['intent'] === 'stock_value';
         $query = Product::query()->leftJoin('units', 'units.id', '=', 'products.unit_id');
@@ -232,42 +303,62 @@ class ConversationReportService
             $query->where('products.category_id', $id);
         }
         $metrics = ['Product count' => (clone $query)->count()];
-        $totals = (clone $query)->selectRaw('units.name as unit_name, SUM(products.quantity) as quantity')->groupBy('units.name')->orderBy('units.name')->get();
+        $totalsQuery = (clone $query)->leftJoin('outlet_stocks', function ($join) use ($outletId) {
+            $join->on('outlet_stocks.product_id', '=', 'products.id');
+            if ($outletId) {
+                $join->where('outlet_stocks.outlet_id', '=', $outletId);
+            }
+        });
+        $totals = $totalsQuery->toBase()->selectRaw('units.name as unit_name, COALESCE(SUM(outlet_stocks.quantity), 0) as quantity')->groupBy('units.name')->orderBy('units.name')->get();
         foreach ($totals as $total) {
             $metrics['Total quantity ('.($total->unit_name ?? 'Unassigned unit').')'] = round((float) $total->quantity, 4);
         }
         $columns = ['Product', 'Unit', 'Quantity'];
         $notes = ['Current recorded stock, not a historical snapshot. Deleted products are excluded.', 'Quantity totals are separated by unit; boxes, pieces, and kilograms are not combined. Zero and negative quantities are included as recorded.'];
-        $fields = ['products.name', 'units.name as unit_name', 'products.quantity'];
+        $fields = ['products.id', 'products.name', 'units.name as unit_name'];
         if ($value) {
-            $metrics['Stock value at cost'] = round((float) (clone $query)->selectRaw('COALESCE(SUM(products.quantity * COALESCE(products.cost_price, 0)), 0) as value')->value('value'), 2);
-            $metrics['Stock value at selling price'] = round((float) (clone $query)->selectRaw('COALESCE(SUM(products.quantity * COALESCE(products.selling_price, 0)), 0) as value')->value('value'), 2);
+            $valueQuery = (clone $query)->leftJoin('outlet_stocks', function ($join) use ($outletId) {
+                $join->on('outlet_stocks.product_id', '=', 'products.id');
+                if ($outletId) {
+                    $join->where('outlet_stocks.outlet_id', '=', $outletId);
+                }
+            });
+            $metrics['Stock value at cost'] = round((float) (clone $valueQuery)->toBase()->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.cost_price, 0)), 0) as value')->value('value'), 2);
+            $metrics['Stock value at selling price'] = round((float) (clone $valueQuery)->toBase()->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.selling_price, 0)), 0) as value')->value('value'), 2);
             $columns = array_merge($columns, ['Cost value', 'Selling value']);
             $fields = array_merge($fields, ['products.cost_price', 'products.selling_price']);
             $notes[] = 'Values use current quantity multiplied by the stored cost or selling price, matching the Stock Value report. Selling value is potential retail value, not realised revenue or profit. Missing prices contribute zero.';
         }
-        $rows = $query->orderBy('products.name')->limit(50)->get($fields)->map(function ($product) use ($value) {
-            $row = [$product->name, $product->unit_name ?? 'Unassigned unit', (float) $product->quantity];
+        $rows = $query->with(['outletStocks' => function ($q) use ($outletId) {
+            if ($outletId) $q->where('outlet_id', $outletId);
+        }])->orderBy('products.name')->limit(50)->get($fields)->map(function ($product) use ($value, $outletId) {
+            $qty = $outletId ? $product->quantityForOutlet($outletId) : (float) $product->quantity;
+            $row = [$product->name, $product->unit_name ?? 'Unassigned unit', $qty];
             if ($value) {
-                $row[] = number_format((float) $product->quantity * (float) $product->cost_price, 2);
-                $row[] = number_format((float) $product->quantity * (float) $product->selling_price, 2);
+                $row[] = number_format($qty * (float) $product->cost_price, 2);
+                $row[] = number_format($qty * (float) $product->selling_price, 2);
             }
             return $row;
         })->all();
         return $this->result($report, $value ? 'Current stock value and balances' : 'Current stock balances', $metrics, $columns, $rows, $notes,
-            $value ? 'stock.stock_value' : 'stock.report', 'Current stock');
+            $value ? 'stock.stock_value' : 'stock.report', 'Current stock', $outletId);
     }
 
-    private function banking(array $report): array
+    private function banking(array $report, ?int $outletId = null): array
     {
         $id = $this->entity(BankAccount::class, $report['account'] ?? null);
+        $notes = [];
+        if ($outletId) {
+            $notes[] = 'Bank accounts and treasury transactions are managed centrally at Enterprise level.';
+        }
         if ($report['intent'] === 'bank_balances') {
             $query = BankAccount::query();
             if ($id) $query->whereKey($id);
             $rows = $query->orderBy('name')->limit(50)->get(['name', 'currency', 'current_balance'])
                 ->map(fn ($row) => [$row->name, $row->currency, number_format((float) $row->current_balance, 2)])->all();
+            $notes[] = 'Current balances recorded in this app, not live bank balances. Accounts with different currencies are not combined.';
             return $this->result($report, 'Recorded bank balances', [], ['Account', 'Currency', 'Balance'], $rows,
-                ['Current balances recorded in this app, not live bank balances. Accounts with different currencies are not combined.'], 'accounting.setup.bank-accounts.index', 'Current recorded balances');
+                $notes, 'accounting.setup.bank-accounts.index', 'Current recorded balances', $outletId);
         }
         $query = BankTransaction::query()->join('bank_accounts', 'bank_accounts.id', '=', 'bank_transactions.bank_account_id');
         $this->range($query, 'bank_transactions.transaction_date', $report);
@@ -276,8 +367,9 @@ class ConversationReportService
         $rows = $query->selectRaw('bank_accounts.currency, bank_transactions.type, SUM(bank_transactions.amount) as amount, COUNT(*) as count')
             ->groupBy('bank_accounts.currency', 'bank_transactions.type')->orderBy('bank_accounts.currency')->orderBy('bank_transactions.type')->limit(50)->get()
             ->map(fn ($row) => [$row->currency, ucfirst(str_replace('_', ' ', $row->type)), number_format((float) $row->amount, 2), $row->count])->all();
+        $notes[] = 'Filtered by transaction date. Transfers are shown separately, not treated as business income or expense. Amounts are grouped by currency and movement type.';
         return $this->result($report, 'Bank transaction movements', [], ['Currency', 'Type', 'Amount', 'Transactions'], $rows,
-            ['Filtered by transaction date. Transfers are shown separately, not treated as business income or expense. Amounts are grouped by currency and movement type.'], 'accounting.setup.bank-transactions.index');
+            $notes, 'accounting.setup.bank-transactions.index', null, $outletId);
     }
 
     private function entity(string $model, ?string $name): ?int
@@ -288,10 +380,14 @@ class ConversationReportService
             if (!$record) throw new InvalidArgumentException('That record was not found.');
             return $record->id;
         }
+        if ($model === Outlet::class) {
+            $codeMatch = Outlet::query()->where('code', $name)->first();
+            if ($codeMatch) return $codeMatch->id;
+        }
         $matches = $model::query()->where('name', $name)->limit(2)->get(['id', 'name']);
         if ($matches->count() === 1) return $matches->first()->id;
         if ($matches->isEmpty()) {
-            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $name);
+            $escaped = str_replace(['\\\\', '%', '_'], ['\\\\\\\\', '\\\\%', '\\\\_'], $name);
             $matches = $model::query()->where('name', 'like', '%'.$escaped.'%')->limit(6)->get(['id', 'name']);
         }
         if ($matches->count() === 1) return $matches->first()->id;
@@ -310,18 +406,24 @@ class ConversationReportService
         return empty($report['from']) ? 'All time' : $report['from'].' to '.$report['to'];
     }
 
-    private function result(array $report, string $title, array $metrics, array $columns, array $rows, array $notes, string $route, ?string $period = null): array
+    private function result(array $report, string $title, array $metrics, array $columns, array $rows, array $notes, string $route, ?string $period = null, ?int $outletId = null): array
     {
         if (count($rows) === 50) $notes[] = 'Showing up to 50 rows. Totals include all matching records.';
+        $filters = array_intersect_key($report, array_flip(['location', 'customer', 'supplier', 'category', 'account', 'product', 'payment_status', 'bank_type']));
+        $routeParams = [];
+        if ($outletId && in_array($route, ['sales.index', 'reports.sales-cash-movement', 'reports.sales-lines', 'stock.report', 'expense-vouchers.index'], true)) {
+            $routeParams['outlet_id'] = $outletId;
+        }
         return [
             'title' => $title,
             'period' => $period ?? $this->period($report),
-            'filters' => array_intersect_key($report, array_flip(['customer', 'supplier', 'category', 'account', 'product', 'payment_status', 'bank_type'])),
+            'filters' => $filters,
             'metrics' => $metrics,
             'columns' => $columns,
             'rows' => $rows,
             'notes' => $notes,
-            'source' => ['url' => route($route), 'label' => 'Open records'],
+            'source' => ['url' => route($route, $routeParams), 'label' => 'Open records'],
         ];
     }
 }
+

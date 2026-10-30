@@ -19,9 +19,11 @@
                 <div class="card">
                     <div class="card-body">
 
-                        <a href="{{ route('roles.create') }}" class="btn btn-success" style="float:right;">
-                            <i class="fas fa-plus-circle"></i> Add Role
-                        </a>
+                        @if(auth()->check() && auth()->user()->isCentral() && \Illuminate\Support\Facades\Gate::allows('role-create'))
+                            <a href="{{ route('roles.create') }}" class="btn btn-modern-primary" style="float:right;">
+                                <i class="fas fa-plus-circle me-1 mr-1"></i> Add Role
+                            </a>
+                        @endif
                         <br><br>
 
                         <h4 class="card-title">Role All Data</h4>

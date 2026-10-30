@@ -30,10 +30,11 @@
                             <div>Window: {{ $editWindowHours }} hours, ends {{ $windowEndsAt->format('d-m-Y H:i') }}.</div>
                         </div>
 
-                        <div class="mb-3">
-                            <strong>Supplier:</strong> {{ optional(optional($purchase->purchase_payment)->supplier)->name ?? 'N/A' }}
+                        <div class="mb-3 d-flex align-items-center flex-wrap gap-2">
+                            <span><strong>Supplier:</strong> {{ optional(optional($purchase->purchase_payment)->supplier)->name ?? 'N/A' }}</span>
                             <span class="ms-3"><strong>Date:</strong> {{ \Carbon\Carbon::parse($purchase->date)->format('d-m-Y') }}</span>
                             <span class="ms-3"><strong>Payment Status:</strong> {{ optional($purchase->purchase_payment)->paid_status ?? 'N/A' }}</span>
+                            <span class="ms-3"><strong>Receiving Location:</strong> <span class="badge bg-primary">Central Warehouse</span></span>
                         </div>
 
                         @if ($purchase->updated_by)

@@ -22,6 +22,12 @@ class ExpenseVoucherDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('outlet_name', function ($row) {
+                if (!$row->outlet) {
+                    return '<span class="badge bg-secondary">Central Warehouse</span>';
+                }
+                return '<span class="badge bg-light text-dark border">' . e($row->outlet->name) . '</span>' . ($row->outlet->is_central ? ' <span class="badge bg-secondary">Central</span>' : '');
+            })
             ->addColumn('created_by_name', function ($row) {
                 if (!Gate::allows('user-audit-view')) {
                     return '';
@@ -77,8 +83,8 @@ class ExpenseVoucherDataTable extends DataTable
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="' . $editUrl . '" method="GET">
                         ' . $csrf . '
-                        <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                            <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                        <button class="btn-action-edit table-edit-btn">
+                            <i class="fas fa-edit"></i>
                         </button>
                     </form>';
                 }
@@ -88,8 +94,8 @@ class ExpenseVoucherDataTable extends DataTable
                     <form class="d-inline-block m-0" action="' . $deleteUrl . '" method="POST">
                         ' . $csrf . '
                         ' . $method . '
-                        <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                            <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                        <button type="button" class="btn-action-delete delete-confirm-btn btn-delete">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
                 }
@@ -108,7 +114,7 @@ class ExpenseVoucherDataTable extends DataTable
             ->editColumn('total_amount', function ($row) {
                 return number_format((float) $row->total_amount, 2);
             })
-            ->rawColumns(['accounting_posting_status', 'edit_button'])
+            ->rawColumns(['accounting_posting_status', 'edit_button', 'outlet_name'])
             ->setRowId('id');
     }
 
@@ -118,10 +124,17 @@ class ExpenseVoucherDataTable extends DataTable
     public function query(ExpenseVoucher $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with('createdBy')
+            ->with(['createdBy', 'outlet'])
             ->withCount('items')
             ->orderBy('voucher_date', 'desc')
             ->orderBy('id', 'desc');
+
+        $currentUser = auth()->user();
+        if ($currentUser && $currentUser->assignedOutletId()) {
+            $query->where('outlet_id', $currentUser->assignedOutletId());
+        } elseif ($outletId = $this->request()->get('outlet_id')) {
+            $query->where('outlet_id', $outletId);
+        }
 
         $status = (string) $this->request()->get('accounting_status', '');
         if (in_array($status, ['unposted', 'posted', 'reversed'], true)) {
@@ -164,6 +177,7 @@ class ExpenseVoucherDataTable extends DataTable
     {
         $columns = [
             Column::make('voucher_date')->title('Date'),
+            Column::make('outlet_name')->title('Branch / Outlet')->searchable(false),
             Column::make('reference_no')->title('Reference No'),
             Column::make('items_count')->title('Lines'),
             Column::make('total_amount')->title('Total Amount'),

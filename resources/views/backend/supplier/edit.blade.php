@@ -27,6 +27,21 @@ use Illuminate\Support\Facades\Crypt;
                     <hr>
 
                     <div class="card-body">
+                        @php
+                            $isCashPurchase = (int) $supplier->id === 1 || strtolower((string) $supplier->name) === 'cash_purchase';
+                        @endphp
+
+                        @if($isCashPurchase)
+                            <div class="alert alert-warning py-2 mb-3" role="alert">
+                                <i class="fas fa-lock me-1" aria-hidden="true"></i>
+                                <strong>System Default Account:</strong> This is the default cash purchase supplier used for cash procurement intake. The supplier name is locked to preserve purchasing business logic.
+                            </div>
+                        @else
+                            <div class="alert alert-info py-2 mb-3" role="alert">
+                                <i class="fas fa-truck me-1" aria-hidden="true"></i>
+                                <strong>Central Procurement:</strong> Updating this vendor profile affects Central Warehouse procurement records and company accounts payable.
+                            </div>
+                        @endif
 
                         <form action="{{ route('suppliers.update', Crypt::encrypt($supplier->id)) }}" method="POST" id="myForm" enctype="multipart/form-data">
                             @csrf
@@ -44,7 +59,10 @@ use Illuminate\Support\Facades\Crypt;
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label for="name"><strong>Supplier Name <span class="text-danger">*</span></strong></label>
-                                        <input type="text" id="name" name="name" class="form-control" value="{{ old('name', $supplier->name) }}" placeholder="enter supplier name" onkeypress="return isCharKey(event)">
+                                        <input type="text" id="name" name="name" class="form-control" value="{{ old('name', $supplier->name) }}" placeholder="enter supplier name" onkeypress="return isCharKey(event)" {{ $isCashPurchase ? 'readonly' : '' }}>
+                                        @if($isCashPurchase)
+                                            <small class="text-warning"><i class="fas fa-lock me-1"></i> System default supplier name cannot be altered.</small>
+                                        @endif
                                     </div>
                                 </div>
 

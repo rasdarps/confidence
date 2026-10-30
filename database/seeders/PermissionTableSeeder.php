@@ -120,6 +120,7 @@ class PermissionTableSeeder extends Seeder
 
         $dashboard_permissions = [
             'dashboard-view',
+            'dashboard-outlet-filter',
         ];
 
         $settings_permissions = [
@@ -139,7 +140,10 @@ class PermissionTableSeeder extends Seeder
             'accounting-journal-post',
             'accounting-journal-reverse',
             'accounting-fiscal-period-list',
+            'accounting-fiscal-period-create',
+            'accounting-fiscal-period-edit',
             'accounting-fiscal-period-close',
+            'accounting-fiscal-period-reopen',
             'bank-account-list',
             'bank-account-create',
             'bank-account-edit',

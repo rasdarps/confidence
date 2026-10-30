@@ -18,6 +18,13 @@ class ProductWiseStockReportDataTable extends DataTable
             ->addColumn('product_name', function ($row) {
                 return $row->product->name ?? '';
             })
+            ->addColumn('outlet_name', function ($row) {
+                if (! $row->outlet) {
+                    return '<span class="badge bg-secondary">N/A</span>';
+                }
+                $badgeClass = $row->outlet->is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($row->outlet->name) . '</span>';
+            })
             ->addColumn('created_by_name', function ($row) {
                 return $row->createdBy->name ?? '';
             })
@@ -42,13 +49,19 @@ class ProductWiseStockReportDataTable extends DataTable
             ->editColumn('balance_after', function ($row) {
                 return number_format((float) $row->balance_after, 2);
             })
+            ->rawColumns(['outlet_name'])
             ->setRowId('id');
     }
 
     public function query(StockLedger $model): QueryBuilder
     {
+        $user = auth()->user();
+        $outletId = ($user && $user->outlet_id)
+            ? (int) $user->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
         $query = $model->newQuery()
-            ->with(['product', 'createdBy'])
+            ->with(['product', 'outlet', 'createdBy'])
             ->orderBy('movement_at', 'desc')
             ->orderBy('id', 'desc');
 
@@ -58,6 +71,10 @@ class ProductWiseStockReportDataTable extends DataTable
         }
 
         $query->where('product_id', $productId);
+
+        if ($outletId) {
+            $query->where('outlet_id', $outletId);
+        }
 
         if ($movementType = $this->request()->get('movement_type')) {
             $query->where('movement_type', $movementType);
@@ -99,15 +116,15 @@ class ProductWiseStockReportDataTable extends DataTable
                     return 0;
                 };
 
-                var qtyInTotal = api.column(3, { page: "current" }).data().reduce(function (a, b) {
+                var qtyInTotal = api.column(4, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
-                var qtyOutTotal = api.column(4, { page: "current" }).data().reduce(function (a, b) {
+                var qtyOutTotal = api.column(5, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
-                var deltaTotal = api.column(5, { page: "current" }).data().reduce(function (a, b) {
+                var deltaTotal = api.column(6, { page: "current" }).data().reduce(function (a, b) {
                     return intVal(a) + intVal(b);
                 }, 0);
 
@@ -118,10 +135,10 @@ class ProductWiseStockReportDataTable extends DataTable
                     });
                 };
 
-                $(api.column(2).footer()).html("Page Totals");
-                $(api.column(3).footer()).html(formatValue(qtyInTotal));
-                $(api.column(4).footer()).html(formatValue(qtyOutTotal));
-                $(api.column(5).footer()).html(formatValue(deltaTotal));
+                $(api.column(3).footer()).html("Page Totals");
+                $(api.column(4).footer()).html(formatValue(qtyInTotal));
+                $(api.column(5).footer()).html(formatValue(qtyOutTotal));
+                $(api.column(6).footer()).html(formatValue(deltaTotal));
             }')
             ->parameters([
                 'dom' => "<'row'l>Bfrtip",
@@ -139,7 +156,8 @@ class ProductWiseStockReportDataTable extends DataTable
     {
         return [
             Column::make('movement_at')->title('Date'),
-            Column::make('product_name')->title('Product'),
+            Column::make('product_name')->title('Product')->searchable(false)->orderable(false),
+            Column::make('outlet_name')->title('Outlet / Location')->searchable(false)->orderable(false),
             Column::make('movement_type')->title('Type'),
             Column::make('qty_in')->title('In'),
             Column::make('qty_out')->title('Out'),
@@ -147,8 +165,6 @@ class ProductWiseStockReportDataTable extends DataTable
             Column::make('balance_before')->title('Opening'),
             Column::make('balance_after')->title('Closing'),
             Column::make('reference_type')->title('Reference Type'),
-            // Column::make('reference_id')->title('Reference ID'),
-            // Column::make('created_by_name')->title('Created By'),
             Column::make('reason')->title('Reason'),
             Column::make('notes')->title('Notes'),
         ];

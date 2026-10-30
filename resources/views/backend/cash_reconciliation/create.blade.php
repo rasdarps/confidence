@@ -10,7 +10,9 @@
             <div class="col-12">
                 <div class="page-title-box d-sm-flex align-items-center justify-content-between">
                     <h4 class="mb-sm-0">Daily Cash Reconciliation</h4>
-                    <a href="{{ route('cash-reconciliations.index') }}" class="btn btn-dark btn-sm">Back</a>
+                    <a href="{{ route('cash-reconciliations.index') }}" class="btn btn-modern-header">
+                        <i class="fas fa-arrow-left me-1 mr-1"></i> Back to Reconciliations
+                    </a>
                 </div>
             </div>
         </div>
@@ -39,15 +41,37 @@
                             @csrf
 
                             <div class="row mb-3">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        @if($canChangeOutlet)
+                                            <label for="outlet_id"><strong>Branch / Outlet <span class="text-danger">*</span></strong></label>
+                                            <select id="outlet_id" name="outlet_id" class="form-control" required>
+                                                @foreach($outlets as $outlet)
+                                                    <option value="{{ $outlet->id }}" {{ (int) $currentOutletId === (int) $outlet->id ? 'selected' : '' }}>
+                                                        {{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '' }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        @else
+                                            <label><strong>Branch / Outlet</strong></label>
+                                            <div>
+                                                <span class="badge bg-primary p-2 fs-6">
+                                                    <i class="fas fa-store"></i> {{ $currentOutlet->name ?? 'Assigned Station' }}
+                                                </span>
+                                            </div>
+                                            <input type="hidden" id="outlet_id" name="outlet_id" value="{{ $currentOutletId }}">
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <label>Business Date</label>
                                     <input type="date" id="business_date" name="business_date" class="form-control" value="{{ old('business_date', $businessDate) }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label>Opening Float</label>
                                     <input type="number" step="0.01" min="0" id="opening_float" name="opening_float" class="form-control" value="{{ old('opening_float', number_format((float) $openingFloat, 2, '.', '')) }}">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <label>Physical Counted Cash</label>
                                     <input type="number" step="0.01" min="0" id="physical_counted_cash" name="physical_counted_cash" class="form-control" value="{{ old('physical_counted_cash') }}">
                                 </div>
@@ -86,9 +110,14 @@
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-12">
-                                    <button type="submit" class="btn btn-primary">Submit Reconciliation</button>
+                            <div class="row mt-4 pt-3 border-top">
+                                <div class="col-12 text-center">
+                                    <a href="{{ route('cash-reconciliations.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                        <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-modern-primary">
+                                        <i class="fas fa-check-circle me-1 mr-1"></i> Submit Reconciliation
+                                    </button>
                                 </div>
                             </div>
                         </form>
@@ -141,7 +170,8 @@ $(function () {
     function loadExpected() {
         $.get(expectedUrl, {
             business_date: $('#business_date').val(),
-            opening_float: $('#opening_float').val()
+            opening_float: $('#opening_float').val(),
+            outlet_id: $('#outlet_id').val()
         }).done(function (res) {
             $('#expected_cash_sales').val(formatMoney(res.expected_cash_sales));
             $('#expected_cash_expenses').val(formatMoney(res.expected_cash_expenses));
@@ -150,7 +180,7 @@ $(function () {
         });
     }
 
-    $('#business_date, #opening_float').on('change input', function () {
+    $('#business_date, #opening_float, #outlet_id').on('change input', function () {
         loadExpected();
     });
 

@@ -20,7 +20,12 @@
                     <div class="card-body">
                         <h4 class="card-title">Cash Sales Data</h4>
 
-                        @if(auth()->user() instanceof \App\Models\User && auth()->user()->hasRole('Cashier'))
+                        @if($assignedOutletId)
+                            <div class="alert alert-info py-2 mb-3" role="alert">
+                                <i class="fas fa-store me-1" aria-hidden="true"></i>
+                                <strong>Branch Station:</strong> Showing cash sales for <strong>{{ optional($outlets->firstWhere('id', $assignedOutletId))->name ?? 'Assigned Branch' }}</strong>.
+                            </div>
+                        @elseif(auth()->user() instanceof \App\Models\User && auth()->user()->hasRole('Cashier'))
                             <div class="alert alert-info py-2 mb-3" role="alert">
                                 <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
                                 Showing payments for your sales only.
@@ -28,6 +33,17 @@
                         @endif
 
                         <div class="row mb-3">
+                            @if(empty($assignedOutletId) && isset($outlets) && $outlets->count() > 0)
+                                <div class="col-md-3">
+                                    <label>Branch / Station</label>
+                                    <select id="filter_outlet_id" class="form-control select2">
+                                        <option value="">All Branches & Central</option>
+                                        @foreach($outlets as $outlet)
+                                            <option value="{{ $outlet->id }}">{{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endif
                             <div class="col-md-3">
                                 <label>Sale Number</label>
                                 <select id="filter_sale_id" class="form-control select2">
@@ -50,14 +66,11 @@
                                 <label>From Date</label>
                                 <input type="date" id="filter_from_date" class="form-control">
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-3 mt-md-2">
                                 <label>To Date</label>
                                 <input type="date" id="filter_to_date" class="form-control">
                             </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-3 mt-md-2 d-flex align-items-end">
                                 <button id="reset_filters" class="btn btn-dark w-100">Reset Filters</button>
                             </div>
                         </div>
@@ -79,11 +92,12 @@
     $(function() {
         let table = $('#cash-sales-table').DataTable();
 
-        $('#filter_sale_id, #filter_customer_id, #filter_from_date, #filter_to_date').on('change', function() {
+        $('#filter_sale_id, #filter_customer_id, #filter_from_date, #filter_to_date, #filter_outlet_id').on('change', function() {
             table.ajax.reload();
         });
 
         $('#reset_filters').on('click', function() {
+            $('#filter_outlet_id').val(null).trigger('change');
             $('#filter_sale_id').val(null).trigger('change');
             $('#filter_customer_id').val(null).trigger('change');
             $('#filter_from_date').val('');
@@ -92,6 +106,7 @@
         });
 
         table.on('preXhr.dt', function(e, settings, data) {
+            data.outlet_id = $('#filter_outlet_id').val();
             data.sale_id = $('#filter_sale_id').val();
             data.customer_id = $('#filter_customer_id').val();
             data.from_date = $('#filter_from_date').val();

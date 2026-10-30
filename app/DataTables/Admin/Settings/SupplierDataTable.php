@@ -22,7 +22,12 @@ class SupplierDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-            ->addColumn('action', 'supplier.action')
+            ->addColumn('scope', function($row) {
+                if ((int) $row->id === 1 || strtolower((string) $row->name) === 'cash_purchase') {
+                    return '<span class="badge bg-secondary"><i class="fas fa-lock me-1"></i> System Default</span>';
+                }
+                return '<span class="badge bg-primary">Central Vendor</span>';
+            })
             ->addColumn('edit_button', function($row) {
                     $editUrl = route('suppliers.edit', Crypt::encrypt($row->id));
                     $deleteUrl = route('suppliers.destroy', Crypt::encrypt($row->id));
@@ -31,29 +36,33 @@ class SupplierDataTable extends DataTable
 
                     $buttons = [];
 
-                    if (Gate::allows('supplier-edit')) {
+                    $user = auth()->user();
+                    $isCentral = $user ? $user->isCentral() : true;
+                    $isCashPurchase = (int) $row->id === 1 || strtolower((string) $row->name) === 'cash_purchase';
+
+                    if (Gate::allows('supplier-edit') && $isCentral) {
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                             '.$csrf.'
-                            <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                                <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                            <button class="btn-action-edit table-edit-btn" title="Edit Supplier">
+                                <i class="fas fa-edit"></i>
                             </button>
                         </form>';
                     }
 
-                    if (Gate::allows('supplier-delete')) {
+                    if (Gate::allows('supplier-delete') && $isCentral && !$isCashPurchase) {
                         $buttons[] = '
                         <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                             '.$csrf.'
                             '.$method.'
-                            <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                                <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                            <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete Supplier">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </form>';
                     }
 
                     if (empty($buttons)) {
-                        return '<span class="text-muted">No actions</span>';
+                        return '<span class="text-muted small">Read Only</span>';
                     }
 
                     return '<div class="d-inline-flex align-items-center flex-nowrap gap-2 action-buttons">' . implode('', $buttons) . '</div>';
@@ -69,7 +78,7 @@ class SupplierDataTable extends DataTable
                     : '';
             })
 
-             ->rawColumns(['edit_button'])
+            ->rawColumns(['scope', 'edit_button'])
 
             ->setRowId('id');
     }
@@ -107,6 +116,7 @@ class SupplierDataTable extends DataTable
     {
         $columns = [
              Column::make('name'),
+             Column::make('scope')->title('Procurement Scope')->searchable(false),
              Column::make('mobile_no'),
              Column::make('email'),
              Column::make('city'),

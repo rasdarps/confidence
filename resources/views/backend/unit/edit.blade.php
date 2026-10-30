@@ -29,6 +29,13 @@ use Illuminate\Support\Facades\Crypt;
 
                     <div class="card-body">
 
+                        <div class="alert alert-info d-flex align-items-center mb-3">
+                            <i class="fas fa-balance-scale fa-lg mr-2 me-2"></i>
+                            <div>
+                                <strong>Enterprise Measurement Units:</strong> Modifying this unit name will update the measurement unit for all linked products enterprise-wide across Central Warehouse and all retail outlets.
+                            </div>
+                        </div>
+
                         <form action="{{ route('units.update', Crypt::encrypt($unit->id)) }}" method="POST" id="myForm" enctype="multipart/form-data">
                             @csrf
                             @method('PATCH')  {{-- Using PATCH method --}}
@@ -227,13 +234,14 @@ use Illuminate\Support\Facades\Crypt;
                             scrollTop: $('#errorAlert').offset().top - 100
                         }, 500);
                     } else {
+                        var errMsg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : (xhr.responseText || 'An error occurred. Please try again later.');
                         $('#errorAlert').show();
-                        $('#errors').append('<li>Server Error: ' + (xhr.responseText || 'An error occurred. Please try again later.') + '</li>');
+                        $('#errors').append('<li>' + errMsg + '</li>');
                         
                         if (typeof Notiflix !== 'undefined') {
-                            Notiflix.Notify.failure('An error occurred. Please try again later.');
+                            Notiflix.Notify.failure(errMsg);
                         } else {
-                            alert('An error occurred: ' + xhr.responseText);
+                            alert('An error occurred: ' + errMsg);
                         }
                     }
                 }

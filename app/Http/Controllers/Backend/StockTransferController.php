@@ -188,3 +188,4 @@ class StockTransferController extends Controller
         }
     }
 }
+

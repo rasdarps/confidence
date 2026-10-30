@@ -1,5 +1,5 @@
 @extends('layout.main')
-@section('title') {{'View Unit'}} @endsection
+@section('title') {{'View Categories'}} @endsection
 @section('styles')
     <style>
         .custom-control-switch {
@@ -81,7 +81,19 @@
                     <div class="card">
                         <div class="card-body">
 
-                            <a href="{{ route('categories.create') }}" class="btn btn-dark" style="float:right;"><i class="fas fa-plus-circle"> Add Category </i></a> <br>  <br>               
+                            @if(auth()->user()->isCentral() && auth()->user()->can('category-create'))
+                                <a href="{{ route('categories.create') }}" class="btn btn-dark" style="float:right;"><i class="fas fa-plus-circle"> Add Category </i></a>
+                            @else
+                                <span class="badge bg-secondary p-2" style="float:right;"><i class="fas fa-lock me-1"></i> Read-Only (Central Managed)</span>
+                            @endif
+                            <br><br>
+
+                            <div class="alert alert-info d-flex align-items-center mb-3">
+                                <i class="fas fa-sitemap fa-lg mr-3 me-2"></i>
+                                <div>
+                                    <strong>Master Catalog Taxonomy:</strong> Product categories are defined centrally at Headquarters and shared globally across Central Warehouse and all branch retail stations.
+                                </div>
+                            </div>
 
                             <h4 class="card-title">Category All Data </h4>
                             

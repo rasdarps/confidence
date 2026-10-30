@@ -9,8 +9,8 @@
                 <div class="card">
                     <div class="card-header">
                         <span class="card-title" style="font-size:20px;">Dispatch Stock Transfer</span>
-                        <a href="{{ route('stock-transfers.index') }}" style="float:right">
-                            <button type="button" class="btn btn-primary">View All Transfers</button>
+                        <a href="{{ route('stock-transfers.index') }}" class="btn btn-modern-header" style="float:right">
+                            <i class="fas fa-list me-1 mr-1"></i> View All Transfers
                         </a>
                         <hr>
 
@@ -99,8 +99,8 @@
                                     </div>
 
                                     <div class="col-md-3">
-                                        <button type="button" id="addItemBtn" class="btn btn-primary w-100">
-                                            <i class="fas fa-plus-circle"></i> Add to Transfer List
+                                        <button type="button" id="addItemBtn" class="btn btn-modern-primary w-100">
+                                            <i class="fas fa-plus-circle me-1 mr-1"></i> Add to Transfer List
                                         </button>
                                     </div>
                                 </div>
@@ -138,10 +138,13 @@
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                <div class="row mt-4 pt-3 border-top">
                                     <div class="col-12 text-center">
-                                        <button type="submit" class="btn btn-success btn-lg px-5">
-                                            <i class="fas fa-truck"></i> Dispatch Transfer
+                                        <a href="{{ route('stock-transfers.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary">
+                                            <i class="fas fa-truck me-1 mr-1"></i> Dispatch Transfer
                                         </button>
                                     </div>
                                 </div>
@@ -338,3 +341,4 @@
     });
 </script>
 @endsection
+

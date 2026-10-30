@@ -68,7 +68,10 @@ class AllSalesDataTable extends DataTable
             })
 
             ->addColumn('outlet_name', function($row) {
-                return $row->outlet ? $row->outlet->name : 'Central Warehouse';
+                if (!$row->outlet) {
+                    return '<span class="badge bg-secondary">Central Warehouse</span>';
+                }
+                return '<span class="badge bg-light text-dark border">' . e($row->outlet->name) . '</span>' . ($row->outlet->is_central ? ' <span class="badge bg-secondary">Central</span>' : '');
             })
             ->addColumn('cancelled_status', function($row) {
                 if ($row->cancelled_at) {
@@ -159,7 +162,7 @@ class AllSalesDataTable extends DataTable
             })
 
             
-            ->rawColumns(['amount', 'edit_button', 'cancelled_status', 'payment_status_label', 'receipt_status'])
+            ->rawColumns(['amount', 'edit_button', 'cancelled_status', 'payment_status_label', 'receipt_status', 'outlet_name'])
             ->setRowId('id');
     }
 

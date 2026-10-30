@@ -58,20 +58,21 @@ class ConversationParser
         if (preg_match('/\b(by|break.*by) supplier\b/', $text)) {
             $result['group'] = 'supplier';
         }
-        foreach (['customer', 'supplier', 'category', 'account', 'product'] as $entity) {
-            if (preg_match('/\b'.$entity.'\s+["\']([^"\']+)["\']/i', $message, $matches)) {
+        foreach (['customer', 'supplier', 'category', 'account', 'product', 'outlet'] as $entity) {
+            $patternEntity = $entity === 'outlet' ? '(?:outlet|branch|location)' : $entity;
+            if (preg_match('/\b'.$patternEntity.'\s+["\']([^"\']+)["\']/i', $message, $matches)) {
                 $result[$entity] = trim($matches[1]);
-            } elseif (preg_match('/\b(?:for|from|to) '.$entity.'\s+(.+?)(?=\s+(?:today|yesterday|this|last|from \d|between|on \d|in |for \d)|[?.!]|$)/i', $message, $matches)) {
+            } elseif (preg_match('/\b(?:for|from|to|at|in) '.$patternEntity.'\s+(.+?)(?=\s+(?:today|yesterday|this|last|from \d|between|on \d|in |for \d)|[?.!]|$)/i', $message, $matches)) {
                 $result[$entity] = trim($matches[1]);
             }
-            if (!isset($result[$entity]) && preg_match('/\b'.$entity.'\s+(?!""|balances?\b|outstanding\b|sales\b|purchases\b|payments?\b|credit\b|today\b|yesterday\b|this\b|last\b|in\b|from\b|on\b|owe\b|owes\b|debt\b|transactions?\b)[a-z0-9]+/', $text)) {
+            if (!isset($result[$entity]) && preg_match('/\b'.$patternEntity.'\s+(?!""|balances?\b|outstanding\b|sales\b|purchases\b|payments?\b|credit\b|today\b|yesterday\b|this\b|last\b|in\b|from\b|on\b|owe\b|owes\b|debt\b|transactions?\b)[a-z0-9]+/', $text)) {
                 throw new InvalidArgumentException('Please specify the '.$entity.' name in quotes, for example '.$entity.' "Example Name".');
             }
         }
         if (in_array($result['intent'], ['stock_balance', 'stock_value'], true) && preg_match('/\b(?:stock|inventory)(?:\s+(?:balance|value|quantity))?\s+(?:of|for)\s+["\']([^"\']+)["\']/i', $message, $matches)) {
             $result['product'] = trim($matches[1]);
         }
-        if (preg_match('/\bfor\s+(?!customer\b|supplier\b|category\b|account\b|product\b|today\b|yesterday\b|this\b|last\b|all\b|january\b|february\b|march\b|april\b|may\b|june\b|july\b|august\b|september\b|october\b|november\b|december\b)[a-z]+/', $text)
+        if (preg_match('/\bfor\s+(?!customer\b|supplier\b|category\b|account\b|product\b|outlet\b|branch\b|location\b|today\b|yesterday\b|this\b|last\b|all\b|january\b|february\b|march\b|april\b|may\b|june\b|july\b|august\b|september\b|october\b|november\b|december\b)[a-z]+/', $text)
             || preg_match('/\bwhat does\s+(?!customer\b|supplier\b|the customer\b|the supplier\b)[a-z]+.*\bowe\b/', $text)) {
             throw new InvalidArgumentException('Specify the filter type and quote its name, for example sales for customer "Example Customer" today.');
         }
@@ -83,6 +84,9 @@ class ConversationParser
         }
         if (preg_match('/\b(all stock|all inventory|overall)\b/', $text)) {
             unset($result['product'], $result['category']);
+        }
+        if (preg_match('/\b(all outlets|all branches|all locations|entire enterprise|consolidated)\b/', $text)) {
+            unset($result['outlet']);
         }
         $compare = (bool) preg_match('/\b(compare|comparison|versus|vs)\b/', $text);
         $parts = $compare ? preg_split('/\b(?:with|versus|vs)\b/', $text, 2) : [$text];

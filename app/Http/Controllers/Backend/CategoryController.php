@@ -37,12 +37,24 @@ class CategoryController extends Controller
 
 
     public function create(){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('categories.index')->with([
+                'message' => 'Only Central Headquarters staff can create product categories. Product catalog taxonomy is managed centrally.',
+                'alert-type' => 'error',
+            ]);
+        }
 
-     return view('backend.category.create');
+        return view('backend.category.create');
     } // End Mehtod 
 
 
     public function store(Request $request){
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can create product categories.',
+            ], 403);
+        }
 
         $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('categories', 'name')->whereNull('deleted_at')],
@@ -77,6 +89,13 @@ class CategoryController extends Controller
     } // End Method 
 
      public function edit($encryptedId){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('categories.index')->with([
+                'message' => 'Only Central Headquarters staff can modify product categories. Catalog taxonomy is managed centrally.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $category = Category::findorfail($id);
@@ -93,6 +112,13 @@ class CategoryController extends Controller
 
 
      public function update(Request $request, $encryptedId){ 
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can update product categories.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $category = Category::find($id);
@@ -141,6 +167,21 @@ class CategoryController extends Controller
 
 
     public function destroy($encryptedId){
+        if (!Auth::user()->isCentral()) {
+            $message = 'Unauthorized. Only Central Headquarters staff can delete product categories.';
+            if (request()->expectsJson() || request()->ajax()) {
+                return response()->json([
+                    'status' => 403,
+                    'message' => $message,
+                ], 403);
+            }
+
+            return redirect()->route('categories.index')->with([
+                'message' => $message,
+                'alert-type' => 'error',
+            ]);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $category = Category::findOrFail($id);

@@ -2,12 +2,62 @@
 @section('title') {{ 'Summary Ledger' }} @endsection
 
 @section('content')
+<style>
+    .report-filter-panel {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 20px;
+    }
+    .report-filter-panel .filter-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #495057;
+        margin-bottom: 6px;
+        display: block;
+    }
+    .report-filter-panel .form-control,
+    .report-filter-panel .form-select {
+        height: 38px;
+        border-radius: 6px;
+        border-color: #dee2e6;
+        font-size: 0.875rem;
+    }
+    .report-filter-panel .btn-filter-action {
+        height: 38px;
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
+</style>
+
+@php
+    $lockedOutletId = auth()->check() ? auth()->user()->outlet_id : null;
+@endphp
+
 <div class="page-content">
     <div class="container-fluid">
         <div class="row">
             <div class="col-12">
                 <div class="page-title-box d-sm-flex align-items-center justify-content-between">
                     <h4 class="mb-sm-0">Summary Ledger</h4>
+                    @if(isset($selectedOutlet) && $selectedOutlet)
+                        <span class="badge {{ $selectedOutlet->is_central ? 'bg-primary-subtle text-primary border border-primary-subtle' : 'bg-info-subtle text-info border border-info-subtle' }} px-3 py-2">
+                            <i class="{{ $selectedOutlet->is_central ? 'ri-building-4-line' : 'ri-store-2-line' }} me-1"></i>
+                            Viewing Location: {{ $selectedOutlet->name }}{{ $selectedOutlet->is_central ? ' (Central)' : '' }}
+                        </span>
+                    @else
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-3 py-2">
+                            <i class="ri-global-line me-1"></i>Viewing: All Locations (Combined)
+                        </span>
+                    @endif
                 </div>
             </div>
         </div>
@@ -18,11 +68,61 @@
                     <div class="card-body">
                         <h4 class="card-title mb-3">Accounting Ledger Summary</h4>
 
+                        <!-- Filter Panel -->
+                        <form method="GET" action="{{ route('reports.summary-ledger') }}" class="report-filter-panel">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-lg-3 col-md-6">
+                                    <label for="filter_outlet_id" class="filter-label">
+                                        <i class="ri-store-2-line me-1 text-primary"></i>Outlet / Branch
+                                    </label>
+                                    <select name="outlet_id" id="filter_outlet_id" class="form-select" onchange="this.form.submit()" {{ $lockedOutletId ? 'disabled' : '' }}>
+                                        @if(!$lockedOutletId)
+                                            <option value="">All Outlets (Combined)</option>
+                                        @endif
+                                        @foreach($outlets ?? [] as $outlet)
+                                            @if(!$lockedOutletId || $lockedOutletId == $outlet->id)
+                                                <option value="{{ $outlet->id }}" {{ ($outletId ?? null) == $outlet->id ? 'selected' : '' }}>
+                                                    {{ $outlet->name }}{{ $outlet->is_central ? ' (Central)' : '' }}
+                                                </option>
+                                            @endif
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <label for="filter_from_date" class="filter-label">
+                                        <i class="ri-calendar-event-line me-1 text-primary"></i>From Date
+                                    </label>
+                                    <input type="date" name="from_date" id="filter_from_date" class="form-control" value="{{ $fromDate ?? '' }}" onchange="this.form.submit()">
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <label for="filter_to_date" class="filter-label">
+                                        <i class="ri-calendar-check-line me-1 text-primary"></i>To Date
+                                    </label>
+                                    <input type="date" name="to_date" id="filter_to_date" class="form-control" value="{{ $toDate ?? '' }}" onchange="this.form.submit()">
+                                </div>
+
+                                <div class="col-lg-3 col-md-6">
+                                    <a href="{{ route('reports.summary-ledger') }}" class="btn btn-outline-secondary btn-filter-action w-100">
+                                        <i class="ri-refresh-line"></i> Reset Filters
+                                    </a>
+                                </div>
+                            </div>
+                        </form>
+
+                        @if(isset($selectedOutlet) && $selectedOutlet && !$selectedOutlet->is_central)
+                            <div class="alert alert-info py-2 mb-3">
+                                <i class="ri-information-line me-1"></i>
+                                <strong>Branch View ({{ $selectedOutlet->name }}):</strong> Sales, Cash Collections, Receivables, Stock Value, Expenses, Adjustments, and Net Profit reflect this branch. Supplier Purchases & Payables are managed centrally at the Central Warehouse.
+                            </div>
+                        @endif
+
                         <div class="table-responsive">
                             <table class="table table-bordered table-striped align-middle">
                                 <thead>
                                     <tr>
-                                        <th class="text-center" colspan="2">Ledger Book</th>
+                                        <th class="text-center" colspan="2">Ledger Book (Gh¢)</th>
                                     </tr>
                                     <tr>
                                         <th class="text-center text-danger">Debit (Left Side)</th>

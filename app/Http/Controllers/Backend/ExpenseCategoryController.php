@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Backend;
 use App\DataTables\Admin\Settings\ExpenseCategoryDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
+use App\Models\AccountingAccount;
 use App\Models\ExpenseVoucherItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,13 +30,15 @@ class ExpenseCategoryController extends Controller
 
     public function create()
     {
-        return view('backend.expense_category.create');
+        $accounts = AccountingAccount::where('type', 'expense')->orderBy('code')->get();
+        return view('backend.expense_category.create', compact('accounts'));
     }
 
     public function store(Request $request)
     {
         $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('expense_categories', 'name')->whereNull('deleted_at')],
+            'accounting_account_id' => ['nullable', 'exists:accounting_accounts,id'],
         ], [
             'name.required' => 'Please enter expense category name',
             'name.unique' => 'This expense category already exists',
@@ -72,7 +75,8 @@ class ExpenseCategoryController extends Controller
                 return redirect()->route('expense-categories.index')->with('error', 'Expense category not found.');
             }
 
-            return view('backend.expense_category.edit', compact('expenseCategory'));
+            $accounts = AccountingAccount::where('type', 'expense')->orderBy('code')->get();
+            return view('backend.expense_category.edit', compact('expenseCategory', 'accounts'));
         } catch (\Exception $e) {
             return redirect()->route('expense-categories.index')->with('error', 'Invalid expense category ID.');
         }
@@ -93,6 +97,7 @@ class ExpenseCategoryController extends Controller
 
             $validatedData = $request->validate([
                 'name' => ['required', 'string', 'max:255', Rule::unique('expense_categories', 'name')->ignore($id)->whereNull('deleted_at')],
+                'accounting_account_id' => ['nullable', 'exists:accounting_accounts,id'],
             ], [
                 'name.required' => 'Please enter expense category name',
                 'name.unique' => 'This expense category already exists',
@@ -101,6 +106,7 @@ class ExpenseCategoryController extends Controller
             DB::transaction(function () use ($expenseCategory, $validatedData) {
                 $expenseCategory->update([
                     'name' => $validatedData['name'],
+                    'accounting_account_id' => $validatedData['accounting_account_id'] ?? null,
                     'updated_by' => Auth::id(),
                 ]);
             });

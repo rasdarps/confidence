@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Backend;
 
 use App\DataTables\Admin\Settings\StockAdjustmentDataTable;
 use App\Http\Controllers\Controller;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentItem;
@@ -28,23 +29,50 @@ class StockAdjustmentController extends Controller
 
     public function index(StockAdjustmentDataTable $dataTable)
     {
-        return $dataTable->render('backend.stock_adjustment.index');
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        return $dataTable->render('backend.stock_adjustment.index', compact('outlets', 'assignedOutletId'));
     }
 
     public function create()
     {
-        $products = Product::orderBy('name')->get(['id', 'name', 'barcode', 'quantity', 'cost_price']);
-        return view('backend.stock_adjustment.create', compact('products'));
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        if ($assignedOutletId) {
+            $currentOutletId = $assignedOutletId;
+            $canChangeOutlet = false;
+        } else {
+            $central = $outlets->firstWhere('is_central', true);
+            $currentOutletId = $central ? $central->id : ($outlets->first()?->id ?? 1);
+            $canChangeOutlet = true;
+        }
+
+        $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
+        $products = Product::with('outletStocks')->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price']);
+
+        return view('backend.stock_adjustment.create', compact('products', 'outlets', 'currentOutletId', 'currentOutlet', 'canChangeOutlet'));
     }
 
     public function show($encryptedId)
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $adjustment = StockAdjustment::with(['items.product', 'createdBy'])->find($id);
+            $adjustment = StockAdjustment::with(['items.product', 'createdBy', 'outlet'])->find($id);
 
             if (! $adjustment) {
                 return redirect()->route('stock-adjustments.index')->with('error', 'Stock adjustment not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $adjustment->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('stock-adjustments.index')->with('error', 'You do not have access to adjustments from other branches.');
             }
 
             return view('backend.stock_adjustment.show', compact('adjustment'));
@@ -57,10 +85,18 @@ class StockAdjustmentController extends Controller
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $adjustment = StockAdjustment::with(['items.product', 'createdBy'])->find($id);
+            $adjustment = StockAdjustment::with(['items.product', 'createdBy', 'outlet'])->find($id);
 
             if (! $adjustment) {
                 return redirect()->route('stock-adjustments.index')->with('error', 'Stock adjustment not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $adjustment->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('stock-adjustments.index')->with('error', 'You do not have access to adjustments from other branches.');
             }
 
             return view('backend.stock_adjustment.print', compact('adjustment'));
@@ -71,14 +107,17 @@ class StockAdjustmentController extends Controller
 
     public function store(Request $request)
     {
-        $validatedData = $this->validateRequest($request, null);
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outletId = $assignedOutletId ?: ((int) $request->input('outlet_id') ?: (Outlet::where('is_central', true)->value('id') ?? 1));
+
+        $validatedData = $this->validateRequest($request, null, $outletId);
 
         try {
-            DB::transaction(function () use ($validatedData) {
+            DB::transaction(function () use ($validatedData, $outletId) {
                 $totalQty = collect($validatedData['qty'])->map(fn ($v) => (float) $v)->sum();
                 $totalValue = collect($validatedData['amount'])->map(fn ($v) => (float) $v)->sum();
 
-                $outletId = $validatedData['outlet_id'] ?? Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
                 $adjustment = StockAdjustment::create([
                     'outlet_id' => $outletId,
                     'adjustment_date' => $validatedData['adjustment_date'],
@@ -112,13 +151,21 @@ class StockAdjustmentController extends Controller
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $adjustment = StockAdjustment::with('items')->find($id);
+            $adjustment = StockAdjustment::with(['items.product', 'outlet'])->find($id);
 
             if (! $adjustment) {
                 return redirect()->route('stock-adjustments.index')->with('error', 'Stock adjustment not found.');
             }
 
-            $products = Product::orderBy('name')->get(['id', 'name', 'barcode', 'quantity', 'cost_price']);
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $adjustment->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('stock-adjustments.index')->with('error', 'You do not have access to adjustments from other branches.');
+            }
+
+            $products = Product::with('outletStocks')->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price']);
             return view('backend.stock_adjustment.edit', compact('adjustment', 'products'));
         } catch (\Exception $e) {
             return redirect()->route('stock-adjustments.index')->with('error', 'Invalid stock adjustment ID.');
@@ -138,7 +185,19 @@ class StockAdjustmentController extends Controller
                 ], 404);
             }
 
-            $validatedData = $this->validateRequest($request, $adjustment->id);
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $adjustment->outlet_id !== (int) $assignedOutletId) {
+                return response()->json([
+                    'status' => 403,
+                    'message' => 'Unauthorized branch access.',
+                ], 403);
+            }
+
+            $outletId = (int) $adjustment->outlet_id;
+            $validatedData = $this->validateRequest($request, $adjustment->id, $outletId);
 
             DB::transaction(function () use ($adjustment, $validatedData) {
                 if ((string) $adjustment->accounting_status === 'posted' && (int) $adjustment->accounting_journal_id > 0) {
@@ -194,6 +253,18 @@ class StockAdjustmentController extends Controller
                 return redirect()->route('stock-adjustments.index')->with(['message' => $message, 'alert-type' => 'error']);
             }
 
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $adjustment->outlet_id !== (int) $assignedOutletId) {
+                $message = 'Unauthorized branch access.';
+                if (request()->expectsJson() || request()->ajax()) {
+                    return response()->json(['status' => 403, 'message' => $message], 403);
+                }
+                return redirect()->route('stock-adjustments.index')->with(['message' => $message, 'alert-type' => 'error']);
+            }
+
             DB::transaction(function () use ($adjustment) {
                 if ((string) $adjustment->accounting_status === 'posted' && (int) $adjustment->accounting_journal_id > 0) {
                     app(AccountingIntegrationService::class)->reverseStockAdjustment($adjustment, 'Stock adjustment deleted', Auth::id());
@@ -234,7 +305,7 @@ class StockAdjustmentController extends Controller
         }
     }
 
-    private function validateRequest(Request $request, ?int $adjustmentId): array
+    private function validateRequest(Request $request, ?int $adjustmentId, ?int $outletId = null): array
     {
         $validated = $request->validate([
             'outlet_id' => 'nullable|exists:outlets,id',
@@ -271,16 +342,19 @@ class StockAdjustmentController extends Controller
             'physical_count.*.min' => 'Physical count cannot be negative',
         ]);
 
+        $resolvedOutletId = $outletId ?: ((int) ($validated['outlet_id'] ?? 0) ?: (Outlet::where('is_central', true)->value('id') ?? 1));
+        $validated['outlet_id'] = $resolvedOutletId;
+
         if (($validated['physical_count_mode'] ?? '0') === '1') {
             $directions = [];
 
             foreach ($validated['product_id'] as $index => $productId) {
-                $product = Product::find($productId);
+                $product = Product::with('outletStocks')->find($productId);
                 if (! $product) {
                     continue;
                 }
 
-                $currentQty = (float) ($product->quantity ?? 0);
+                $currentQty = (float) $product->quantityForOutlet($resolvedOutletId);
                 $physicalCount = isset($validated['physical_count'][$index])
                     ? (float) $validated['physical_count'][$index]
                     : null;
@@ -290,7 +364,7 @@ class StockAdjustmentController extends Controller
                 }
 
                 if ($physicalCount == $currentQty) {
-                    throw new \RuntimeException('Physical count matches current stock for one or more lines. No adjustment needed.');
+                    throw new \RuntimeException("Physical count matches current stock ({$currentQty}) for '{$product->name}'. No adjustment needed.");
                 }
 
                 $lineDirection = $physicalCount > $currentQty ? 'increase' : 'decrease';
@@ -299,6 +373,7 @@ class StockAdjustmentController extends Controller
                 $directions[$lineDirection] = true;
 
                 $validated['qty'][$index] = $lineQty;
+                $validated['amount'][$index] = round($lineQty * (float) ($validated['unit_cost'][$index] ?? 0), 2);
             }
 
             $directionKeys = array_keys($directions);

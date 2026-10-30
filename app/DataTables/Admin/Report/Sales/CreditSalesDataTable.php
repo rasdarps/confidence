@@ -15,6 +15,14 @@ class CreditSalesDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = optional($row->sale)->outlet;
+                if (! $outlet) {
+                    return '<span class="badge bg-secondary">Central</span>';
+                }
+                $badgeClass = $outlet->is_central ? 'bg-primary' : 'bg-info';
+                return '<span class="badge ' . $badgeClass . '">' . e($outlet->name) . '</span>';
+            })
             ->addColumn('sale_no', function ($row) {
                 return optional($row->sale)->sale_no ?? 'N/A';
             })
@@ -39,7 +47,7 @@ class CreditSalesDataTable extends DataTable
                 $url = route('customer.edit.sale', $row->sale_id);
                 return '<a href="' . $url . '" class="btn btn-info btn-sm text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;" title="Pay Invoice">Pay Invoice</a>';
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['outlet_name', 'action'])
             ->setRowId('id');
     }
 
@@ -47,9 +55,32 @@ class CreditSalesDataTable extends DataTable
     {
         $query = $model->newQuery()
             ->visibleToSalesViewer()
-            ->with(['customer:id,name', 'sale:id,sale_no,date'])
+            ->with(['customer:id,name', 'sale:id,sale_no,date,outlet_id', 'sale.outlet:id,name,is_central'])
             ->where('due_amount', '>', 0)
             ->orderByDesc('id');
+
+        $currentUser = auth()->user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+
+        if ($assignedOutletId) {
+            $query->whereHas('sale', function ($q) use ($assignedOutletId) {
+                $q->where('outlet_id', $assignedOutletId);
+            });
+        } elseif ($outletId = $this->request()->get('outlet_id')) {
+            $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id');
+            if ($outletId === 'central' || ($centralOutletId && (int) $outletId === (int) $centralOutletId)) {
+                $query->whereHas('sale', function ($q) use ($centralOutletId) {
+                    $q->whereNull('outlet_id');
+                    if ($centralOutletId) {
+                        $q->orWhere('outlet_id', $centralOutletId);
+                    }
+                });
+            } else {
+                $query->whereHas('sale', function ($q) use ($outletId) {
+                    $q->where('outlet_id', $outletId);
+                });
+            }
+        }
 
         if ($saleId = $this->request()->get('sale_id')) {
             $query->where('sale_id', $saleId);
@@ -98,6 +129,7 @@ class CreditSalesDataTable extends DataTable
     {
         return [
             Column::make('sale_no')->title('Sale No'),
+            Column::make('outlet_name')->title('Branch / Outlet'),
             Column::make('customer_name')->title('Customer Name'),
             Column::make('sale_date')->title('Date')->searchable(false),
             Column::make('amount_formatted')->title('Total Amount (Gh¢)')->searchable(false),

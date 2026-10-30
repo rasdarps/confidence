@@ -7,6 +7,8 @@ use App\DataTables\Admin\Settings\ProductDataTable;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductCreationRequest;
 use App\Models\Category;
+use App\Models\Outlet;
+use App\Models\OutletStock;
 use App\Models\Product;
 use App\Models\Unit;
 use Illuminate\Http\Request;
@@ -29,9 +31,9 @@ class ProductController extends Controller
     }
 
     public function index(ProductDataTable $dataTable){
-     
         $categories = Category::orderBy('name', 'asc')->get();
-        return $dataTable->render('backend.product.index', compact('categories'));
+        $outlets = Outlet::orderBy('is_central', 'desc')->orderBy('name', 'asc')->get();
+        return $dataTable->render('backend.product.index', compact('categories', 'outlets'));
     } // End Method 
 
     //barcode lookup method for POS scanning
@@ -47,9 +49,9 @@ class ProductController extends Controller
             ]);
         }
 
-        $outletId = auth()->check() ? auth()->user()->assignedOutletId() : null;
+        $outletId = $request->input('outlet_id') ?: (auth()->check() ? auth()->user()->assignedOutletId() : null);
         if (!$outletId) {
-            $outletId = \App\Models\Outlet::where('is_central', true)->value('id');
+            $outletId = Outlet::where('is_central', true)->value('id');
         }
 
         $productData = $product->toArray();
@@ -59,6 +61,13 @@ class ProductController extends Controller
     }
 
     public function create(){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('products.index')->with([
+                'message' => 'Only Central Headquarters staff can create products in the master catalog.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         $units = Unit::orderBy('name', 'asc')->get();
         $categories = Category::orderBy('name', 'asc')->get();
 
@@ -67,6 +76,13 @@ class ProductController extends Controller
 
     public function import(Request $request)
     {
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Only Central Headquarters staff can import products into the master catalog.',
+            ], 403);
+        }
+
         try {
             $validated = $request->validate([
                 'file' => ['required', 'file', 'mimes:xls,xlsx,csv', 'max:5120'],
@@ -104,11 +120,16 @@ class ProductController extends Controller
     }
 
     public function store(ProductCreationRequest $request){
-            $productData = $request->getProductData();
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Only Central Headquarters staff can create products.',
+            ], 403);
+        }
 
+        $productData = $request->getProductData();
             
         try {
-
             DB::transaction(function () use ($productData , $request) {
                 $product = Product::create($productData);
 
@@ -118,15 +139,15 @@ class ProductController extends Controller
                     $product->saveQuietly();
                 }
 
-                $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id')
-                    ?? \App\Models\Outlet::orderBy('id')->value('id');
+                $centralOutletId = Outlet::where('is_central', true)->value('id')
+                    ?? Outlet::orderBy('id')->value('id');
                 if ($centralOutletId) {
-                    \App\Models\OutletStock::firstOrCreate([
+                    OutletStock::firstOrCreate([
                         'outlet_id' => $centralOutletId,
                         'product_id' => $product->id,
                     ], [
                         'quantity' => 0,
-                        'stock_level' => 0,
+                        'stock_level' => (float) ($request->stock_level ?? 1),
                     ]);
                 }
             });
@@ -195,10 +216,11 @@ class ProductController extends Controller
     public function show(string $id)
     {
         try {
-            $product = Product::findOrFail($id);
+            $product = Product::with(['unit', 'category', 'outletStocks.outlet'])->findOrFail($id);
+            $outlets = Outlet::orderBy('is_central', 'desc')->orderBy('name', 'asc')->get();
             
             // Return HTML for modal
-            $html = view('backend.product.partials.product-details-modal', compact('product','id'))->render();
+            $html = view('backend.product.partials.product-details-modal', compact('product', 'id', 'outlets'))->render();
             
             return response()->json([
                 'status' => 'success',
@@ -214,6 +236,13 @@ class ProductController extends Controller
     }
 
     public function edit(string $encryptedId){
+        if (!Auth::user()->isCentral()) {
+            return redirect()->route('products.index')->with([
+                'message' => 'Only Central Headquarters staff can modify products in the master catalog.',
+                'alert-type' => 'error',
+            ]);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $product = Product::with(['unit', 'category'])->find($id);
@@ -222,15 +251,28 @@ class ProductController extends Controller
                 return redirect()->route('products.index')->with('error', 'Product not found.');
             }
             
-          $units = Unit::orderBy('name', 'asc')->get();
+            $units = Unit::orderBy('name', 'asc')->get();
             $categories = Category::orderBy('name', 'asc')->get();
-                                                return view('backend.product.edit', compact('product', 'units', 'categories', 'encryptedId'));
+
+            $centralOutletId = Outlet::where('is_central', true)->value('id')
+                ?? Outlet::orderBy('id')->value('id')
+                ?? 1;
+            $centralStockLevel = (float) ($product->outletStocks()->where('outlet_id', $centralOutletId)->value('stock_level') ?? 1);
+
+            return view('backend.product.edit', compact('product', 'units', 'categories', 'encryptedId', 'centralStockLevel'));
         } catch (\Exception $e) {
             return redirect()->route('products.index')->with('error', 'Invalid product ID.');
         }
     }// End Method 
 
     public function update(Request $request, string $encryptedId){ 
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can update master products.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $product = Product::find($id);
@@ -272,16 +314,16 @@ class ProductController extends Controller
                         'barcode' => $barcodeInput !== '' ? $barcodeInput : $product->barcode,
                         'unit_id' => $validatedData['unit_id'],
                         'category_id' => $validatedData['category_id'],
-                        'stock_level' => $validatedData['stock_level'],
                         'updated_by' => Auth::id(),
                     ];
-                    
-                    // Update quantity if it's less than the new stock level
-                    if ($product->quantity < $validatedData['stock_level']) {
-                        $updateData['quantity'] = $validatedData['stock_level'];
-                    }
-                    
+
                     $product->update($updateData);
+
+                    $centralId = \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
+                    \App\Models\OutletStock::updateOrCreate(
+                        ['outlet_id' => $centralId, 'product_id' => $product->id],
+                        ['stock_level' => $validatedData['stock_level']]
+                    );
                 });
 
                 return response()->json([
@@ -345,6 +387,13 @@ class ProductController extends Controller
 
 
     public function destroy(string $encryptedId){
+        if (!Auth::user()->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Unauthorized. Only Central Headquarters staff can delete master products.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $product = Product::find($id);
@@ -354,6 +403,14 @@ class ProductController extends Controller
                     'status' => 404,
                     'message' => 'Product not found.',
                 ]);
+            }
+
+            // Prevent deleting products that currently have physical stock on hand.
+            if ((float) $product->quantity > 0) {
+                return response()->json([
+                    'status' => 422,
+                    'message' => "Product '{$product->name}' cannot be deleted because it currently has physical stock on hand (" . number_format($product->quantity, 0) . " units across stations). Adjust stock to zero first.",
+                ], 422);
             }
 
             // Prevent deleting products that are already referenced by a purchase.
@@ -371,10 +428,35 @@ class ProductController extends Controller
                     'message' => "Product '{$product->name}' cannot be deleted because it has sales records.",
                 ], 422);
             }
+
+            // Prevent deleting products that have inter-outlet transfer history.
+            if ($product->transferItems()->exists()) {
+                return response()->json([
+                    'status' => 422,
+                    'message' => "Product '{$product->name}' cannot be deleted because it has stock transfer history across outlets.",
+                ], 422);
+            }
+
+            // Prevent deleting products that have stock adjustment audit history.
+            if ($product->stockAdjustmentItems()->exists()) {
+                return response()->json([
+                    'status' => 422,
+                    'message' => "Product '{$product->name}' cannot be deleted because it has stock adjustment audit records.",
+                ], 422);
+            }
+
+            // Prevent deleting products that have immutable stock ledger movements.
+            if ($product->stockLedgers()->exists()) {
+                return response()->json([
+                    'status' => 422,
+                    'message' => "Product '{$product->name}' cannot be deleted because it has immutable stock ledger audit records.",
+                ], 422);
+            }
             
             $productName = $product->name;
             
             DB::transaction(function () use ($product) {
+                $product->outletStocks()->delete();
                 $product->delete();
             });
             

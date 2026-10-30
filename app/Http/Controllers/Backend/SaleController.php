@@ -66,7 +66,7 @@ class SaleController extends Controller
 
         $unit = Unit::all();
         $category = Category::all();
-        $products = Product::with(['category', 'unit'])->orderBy('name')->get();
+        $products = Product::with(['category', 'unit', 'outletStocks'])->orderBy('name')->get();
         $costomer = Customer::all();
 
         // Get the maximum numeric sale_no
@@ -81,19 +81,33 @@ class SaleController extends Controller
         $allowNegativeStock = (bool) config('pos.allow_negative_stock', false);
         $preventBackdatedInvoices = (bool) config('pos.prevent_backdated_invoices', false);
         $allowManualDiscountEntryByStaff = (bool) config('pos.allow_manual_discount_entry_by_staff', true);
-        $currentOutletId = auth()->check() ? auth()->user()->assignedOutletId() : null;
-        if (!$currentOutletId) {
-            $currentOutletId = Outlet::where('is_central', true)->value('id') ?? Outlet::orderBy('id')->value('id');
+
+        $currentUser = auth()->user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'asc')->orderBy('name')->get();
+
+        if ($assignedOutletId) {
+            $currentOutletId = $assignedOutletId;
+            $canChangeOutlet = false;
+        } else {
+            $firstRetail = $outlets->firstWhere('is_central', false);
+            $currentOutletId = $firstRetail ? $firstRetail->id : ($outlets->first()?->id ?? 1);
+            $canChangeOutlet = true;
         }
 
-        return view('backend.sale.create',compact(
+        $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
+
+        return view('backend.sale.create', compact(
             'sale_no',
             'category',
             'date',
             'costomer',
             'products',
             'unit',
+            'outlets',
             'currentOutletId',
+            'currentOutlet',
+            'canChangeOutlet',
             'allowNegativeStock',
             'preventBackdatedInvoices',
             'allowManualDiscountEntryByStaff'
@@ -130,6 +144,7 @@ class SaleController extends Controller
                 Rule::in(PaymentStatus::canonicalStatuses()),
             ],
             'customer_id' => ['required'],
+            'outlet_id' => ['nullable', 'exists:outlets,id'],
         ];
 
         if ($request->customer_id == '0') {
@@ -283,7 +298,17 @@ class SaleController extends Controller
                         ->value('max_no');
                     $nextNo = str_pad($maxInvoiceNo + 1, 2, '0', STR_PAD_LEFT);
 
-                    $outletId = Auth::user()->outlet_id ?? (int) $request->input('outlet_id') ?: (\App\Models\Outlet::where('is_central', true)->value('id') ?? 1);
+                    $user = Auth::user();
+                    $assignedOutletId = $user ? $user->assignedOutletId() : null;
+                    if ($assignedOutletId) {
+                        $outletId = $assignedOutletId;
+                    } else {
+                        $outletId = (int) $request->input('outlet_id');
+                        if (!$outletId || !\App\Models\Outlet::where('id', $outletId)->exists()) {
+                            $firstRetail = \App\Models\Outlet::where('is_active', true)->where('is_central', false)->value('id');
+                            $outletId = $firstRetail ?: (\App\Models\Outlet::where('is_active', true)->value('id') ?? 1);
+                        }
+                    }
 
                     $Sale = Sale::create([
                         'outlet_id' => $outletId,
@@ -687,7 +712,12 @@ class SaleController extends Controller
 
     public function deliveryVerificationPage()
     {
-        return view('backend.sale.delivery_verify');
+        $currentUser = auth()->user();
+        $assignedOutlet = $currentUser && $currentUser->assignedOutletId()
+            ? Outlet::find($currentUser->assignedOutletId())
+            : null;
+
+        return view('backend.sale.delivery_verify', compact('assignedOutlet'));
     }
 
     public function verifyDelivery(Request $request)
@@ -702,7 +732,11 @@ class SaleController extends Controller
         }
 
         $result = DB::transaction(function () use ($code, $request) {
-            $sale = Sale::query()->where('delivery_code', $code)->lockForUpdate()->first();
+            $sale = Sale::query()
+                ->with(['outlet', 'sale_details.product', 'sale_details.unit', 'payment.customer', 'deliveredBy'])
+                ->where('delivery_code', $code)
+                ->lockForUpdate()
+                ->first();
 
             if (! $sale) {
                 return ['status' => 'missing', 'message' => 'No sale matches this delivery code.', 'http' => 404];
@@ -712,8 +746,34 @@ class SaleController extends Controller
                 return ['status' => 'cancelled', 'message' => 'This sale is cancelled and cannot be delivered.', 'http' => 409];
             }
 
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            // Multi-outlet check: branch staff cannot deliver sales from another branch
+            if ($assignedOutletId && ! $isSuperAdmin && $sale->outlet_id && (int) $sale->outlet_id !== (int) $assignedOutletId) {
+                $saleOutletName = $sale->outlet ? $sale->outlet->name : 'another branch';
+                return [
+                    'status' => 'cross_outlet',
+                    'message' => 'Cross-branch delivery prohibited: This sale was made at "' . $saleOutletName . '" and cannot be verified at your station.',
+                    'http' => 403,
+                ];
+            }
+
             if ($sale->delivered_at) {
-                return ['status' => 'duplicate', 'message' => 'This sale was already delivered at ' . $sale->delivered_at->format('d-m-Y h:i A') . '.', 'http' => 409];
+                $deliveredBy = $sale->deliveredBy ? $sale->deliveredBy->name : 'staff';
+                $outletName = $sale->outlet ? $sale->outlet->name : 'Central Warehouse';
+                return [
+                    'status' => 'duplicate',
+                    'message' => 'This sale was already delivered on ' . $sale->delivered_at->format('d-m-Y h:i A') . ' by ' . $deliveredBy . ' (' . $outletName . ').',
+                    'http' => 409,
+                    'sale' => [
+                        'sale_no' => $sale->sale_no,
+                        'outlet_name' => $outletName,
+                        'customer_name' => $sale->payment?->customer?->name ?? 'Walk-in Customer',
+                        'delivered_at' => $sale->delivered_at->format('d-m-Y h:i A'),
+                    ],
+                ];
             }
 
             $sale->delivered_at = now();
@@ -721,7 +781,28 @@ class SaleController extends Controller
             $sale->save();
             $this->recordReceiptEvent($sale, 'delivery_verified', null, $request);
 
-            return ['status' => 'success', 'message' => 'Delivery verified for sale #' . $sale->sale_no . '.', 'http' => 200];
+            $outletName = $sale->outlet ? $sale->outlet->name : 'Central Warehouse';
+            $items = $sale->sale_details->map(function ($detail) {
+                return [
+                    'product_name' => $detail->product ? $detail->product->name : 'Item',
+                    'unit' => $detail->unit ? $detail->unit->name : '',
+                    'quantity' => (float) $detail->selling_qty,
+                ];
+            });
+
+            return [
+                'status' => 'success',
+                'message' => 'Delivery verified for sale #' . $sale->sale_no . ' (' . $outletName . ').',
+                'http' => 200,
+                'sale' => [
+                    'sale_no' => $sale->sale_no,
+                    'outlet_name' => $outletName,
+                    'outlet_is_central' => (bool) ($sale->outlet?->is_central ?? false),
+                    'customer_name' => $sale->payment?->customer?->name ?? 'Walk-in Customer',
+                    'delivered_at' => $sale->delivered_at->format('d-m-Y h:i A'),
+                    'items' => $items,
+                ],
+            ];
         });
 
         return response()->json($result, $result['http']);
@@ -739,8 +820,12 @@ class SaleController extends Controller
             })
             ->orderBy('name')
             ->get(['id', 'name']);
+        $outlets = Outlet::where('is_active', true)
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_central']);
 
-        return $dataTable->render('backend.sale.receipt_audit', compact('operators', 'filters'));
+        return $dataTable->render('backend.sale.receipt_audit', compact('operators', 'filters', 'outlets'));
     }
 
     public function exportReceiptAudit(Request $request)
@@ -750,18 +835,19 @@ class SaleController extends Controller
 
         return response()->streamDownload(function () use ($events) {
             $output = fopen('php://output', 'w');
-            fputcsv($output, ['Sale Number', 'Total Print Count', 'Event Type', 'Operator', 'Reason', 'Print Time', 'Delivery Status']);
+            fputcsv($output, ['Sale Number', 'Outlet / Branch', 'Total Print Count', 'Event Type', 'Operator', 'Reason', 'Print Time', 'Delivery Status']);
 
             foreach ($events as $event) {
                 $sale = $event->sale;
                 fputcsv($output, [
                     $sale->sale_no ?? '',
+                    optional(optional($sale)->outlet)->name ?? 'Central Warehouse',
                     $sale->total_print_count ?? 0,
                     $event->event_type,
                     optional($event->operator)->name ?? '',
                     $event->reason ?? '',
                     optional($event->created_at)->format('Y-m-d H:i:s'),
-                    $sale->delivered_at ? 'Delivered' : 'Pending',
+                    $sale && $sale->delivered_at ? 'Delivered' : 'Pending',
                 ]);
             }
 
@@ -786,6 +872,7 @@ class SaleController extends Controller
     private function validateReceiptAuditFilters(Request $request): array
     {
         return $request->validate([
+            'outlet_id' => ['nullable', 'integer', 'exists:outlets,id'],
             'sale_no' => ['nullable', 'string', 'max:100'],
             'operator_id' => ['nullable', 'integer', 'exists:users,id'],
             'event_type' => ['nullable', 'in:original,reprint,delivery_verified'],
@@ -797,16 +884,24 @@ class SaleController extends Controller
 
     private function receiptAuditQuery(array $filters)
     {
+        $outletId = (Auth::check() && Auth::user()->outlet_id)
+            ? (int) Auth::user()->outlet_id
+            : (! empty($filters['outlet_id']) ? (int) $filters['outlet_id'] : null);
+
         $query = SaleReceiptEvent::query()
             ->with([
                 'operator',
                 'sale' => function ($query) {
-                    $query->withCount(['receiptEvents as total_print_count' => function ($events) {
-                        $events->whereIn('event_type', ['original', 'reprint']);
-                    }]);
+                    $query->with('outlet')
+                        ->withCount(['receiptEvents as total_print_count' => function ($events) {
+                            $events->whereIn('event_type', ['original', 'reprint']);
+                        }]);
                 },
             ])
-            ->whereHas('sale', function ($query) use ($filters) {
+            ->whereHas('sale', function ($query) use ($filters, $outletId) {
+                if ($outletId) {
+                    $query->where('outlet_id', $outletId);
+                }
                 if (! empty($filters['sale_no'])) {
                     $query->where('sale_no', 'like', '%' . $filters['sale_no'] . '%');
                 }
@@ -858,52 +953,91 @@ class SaleController extends Controller
         ];
 
         if ($canSelectCashier) {
-            $validationRules['user_id'] = ['nullable', 'integer', 'exists:users,id'];
+            $validationRules['user_id'] = ['nullable'];
+            $validationRules['outlet_id'] = ['nullable'];
         }
 
         $validated = $request->validate($validationRules);
         $selectedDate = $validated['date'] ?? Carbon::now()->toDateString();
 
-        $cashiers = collect();
-        $selectedUserId = (int) $currentUser->id;
-        $selectedUser = $currentUser;
+        $outlets = collect();
+        $selectedOutletId = null;
+        $selectedOutlet = null;
 
         if ($canSelectCashier) {
-            $cashiers = User::role('Cashier')->orderBy('name')->get(['id', 'name', 'username']);
+            $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'asc')->orderBy('name')->get();
+            $assignedOutletId = $currentUser->assignedOutletId();
 
-            $selectedUserId = (int) ($validated['user_id'] ?? 0);
-            if (! $selectedUserId && $cashiers->isNotEmpty()) {
-                $selectedUserId = (int) $cashiers->first()->id;
+            if ($request->has('outlet_id') && $request->input('outlet_id') !== '' && $request->input('outlet_id') !== 'all') {
+                $selectedOutletId = (int) $request->input('outlet_id');
+            } elseif (!$request->has('outlet_id') && $assignedOutletId) {
+                $selectedOutletId = $assignedOutletId;
             }
 
-            $selectedUser = $cashiers->firstWhere('id', $selectedUserId);
-            if (! $selectedUser && $cashiers->isNotEmpty()) {
-                $selectedUser = $cashiers->first();
-                $selectedUserId = (int) $selectedUser->id;
+            if ($selectedOutletId) {
+                $selectedOutlet = $outlets->firstWhere('id', $selectedOutletId);
             }
 
-            if (! $selectedUser) {
-                $selectedUser = $currentUser;
-                $selectedUserId = (int) $currentUser->id;
+            // Cashiers query
+            $cashiersQuery = User::role('Cashier')->orderBy('name');
+            if ($selectedOutletId) {
+                $cashiersQuery->where('outlet_id', $selectedOutletId);
             }
+            $cashiers = $cashiersQuery->get(['id', 'name', 'username', 'outlet_id']);
+
+            $rawUserId = $request->input('user_id');
+            if ($rawUserId === 'all' || $rawUserId === '') {
+                $selectedUserId = null;
+                $selectedUser = null;
+            } elseif ($rawUserId !== null) {
+                $selectedUserId = (int) $rawUserId;
+                $selectedUser = User::find($selectedUserId);
+            } else {
+                if ($cashiers->count() === 1) {
+                    $selectedUser = $cashiers->first();
+                    $selectedUserId = (int) $selectedUser->id;
+                } else {
+                    $selectedUserId = null;
+                    $selectedUser = null;
+                }
+            }
+        } else {
+            // Cashier view - locked to their own sales and assigned outlet
+            $selectedUserId = (int) $currentUser->id;
+            $selectedUser = $currentUser;
+            $selectedOutletId = $currentUser->assignedOutletId();
+            $selectedOutlet = $selectedOutletId ? Outlet::find($selectedOutletId) : null;
+            $cashiers = collect();
         }
 
-        $totalSalesAmount = Payment::query()
+        $query = Payment::query()
             ->join('sales', 'payments.sale_id', '=', 'sales.id')
             ->whereDate('sales.date', $selectedDate)
-            ->whereNull('sales.cancelled_at')
-            ->where('sales.created_by', $selectedUserId)
-            ->sum('payments.total_amount');
+            ->whereNull('sales.cancelled_at');
+
+        if ($selectedOutletId) {
+            $query->where('sales.outlet_id', $selectedOutletId);
+        }
+
+        if ($selectedUserId) {
+            $query->where('sales.created_by', $selectedUserId);
+        }
+
+        $totalSalesAmount = (float) $query->sum('payments.total_amount');
 
         $companyInfo = Company::first();
 
         return view('backend.sale.daily_total_sales', [
             'selectedDate' => $selectedDate,
-            'username' => $selectedUser->username ?? $selectedUser->name,
+            'username' => $selectedUser ? ($selectedUser->username ?? $selectedUser->name) : 'All Cashiers',
+            'selectedUser' => $selectedUser,
             'canSelectCashier' => $canSelectCashier,
             'cashiers' => $cashiers,
             'selectedUserId' => $selectedUserId,
-            'totalSalesAmount' => (float) $totalSalesAmount,
+            'outlets' => $outlets,
+            'selectedOutletId' => $selectedOutletId,
+            'selectedOutlet' => $selectedOutlet,
+            'totalSalesAmount' => $totalSalesAmount,
             'companyInfo' => $companyInfo,
         ]);
     }

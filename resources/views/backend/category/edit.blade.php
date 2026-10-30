@@ -29,6 +29,13 @@ use Illuminate\Support\Facades\Crypt;
 
                     <div class="card-body">
 
+                        <div class="alert alert-info d-flex align-items-center mb-3">
+                            <i class="fas fa-globe fa-lg mr-2 me-2"></i>
+                            <div>
+                                <strong>Master Catalog Taxonomy:</strong> Renaming this category will immediately update the catalog taxonomy for all linked products enterprise-wide across Central Warehouse and all retail outlets.
+                            </div>
+                        </div>
+
                         <form action="{{ route('categories.update', Crypt::encrypt($category->id)) }}" method="POST" id="myForm" enctype="multipart/form-data">
                             @csrf
                             @method('PATCH')  {{-- Using PATCH method --}}

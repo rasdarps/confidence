@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Admin\Report\Accounting;
 
+use App\Models\AccountingJournal;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
@@ -38,15 +39,21 @@ class TrialBalanceDataTable extends DataTable
         $fromDate = $this->request()->get('from_date') ?: now()->startOfMonth()->toDateString();
         $toDate = $this->request()->get('to_date') ?: now()->toDateString();
 
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
         return DB::table('accounting_accounts as a')
             ->leftJoin('accounting_journal_lines as l', 'l.account_id', '=', 'a.id')
-            ->leftJoin('accounting_journals as j', function ($join) use ($fromDate, $toDate) {
+            ->leftJoin('accounting_journals as j', function ($join) use ($fromDate, $toDate, $outletId) {
                 $join->on('j.id', '=', 'l.journal_id')
                     ->where('j.status', '=', 'posted')
                     ->whereDate('j.posting_date', '>=', $fromDate)
                     ->whereDate('j.posting_date', '<=', $toDate)
                     ->whereRaw("NOT EXISTS (SELECT 1 FROM sales s WHERE s.id = j.source_id AND j.source_type IN ('sale','sale_cancel') AND s.cancelled_at IS NOT NULL)")
                     ->whereRaw("NOT EXISTS (SELECT 1 FROM purchases p WHERE p.id = j.source_id AND j.source_type IN ('purchase','purchase_cancel') AND p.cancelled_at IS NOT NULL)");
+
+                AccountingJournal::applyOutletFilter($join, $outletId, 'j');
             })
             ->select(
                 'a.id',
@@ -86,8 +93,8 @@ class TrialBalanceDataTable extends DataTable
             Column::make('code')->title('Code'),
             Column::make('name')->title('Account'),
             Column::make('type')->title('Type'),
-            Column::make('debit_total')->title('Debit')->searchable(false),
-            Column::make('credit_total')->title('Credit')->searchable(false),
+            Column::make('debit_total')->title('Debit (Gh¢)')->searchable(false),
+            Column::make('credit_total')->title('Credit (Gh¢)')->searchable(false),
         ];
     }
 

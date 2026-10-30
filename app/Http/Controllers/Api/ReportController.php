@@ -50,7 +50,8 @@ class ReportController extends MobileController
     private function quantityTotals($query): array
     {
         return (clone $query)->leftJoin('units', 'units.id', '=', 'products.unit_id')
-            ->selectRaw('products.unit_id, units.name as unit_name, SUM(products.quantity) as quantity')
+            ->leftJoin('outlet_stocks', 'outlet_stocks.product_id', '=', 'products.id')
+            ->selectRaw('products.unit_id, units.name as unit_name, COALESCE(SUM(outlet_stocks.quantity), 0) as quantity')
             ->groupBy('products.unit_id', 'units.name')->orderBy('products.unit_id')->get()
             ->map(fn ($row) => ['unit_id' => $row->unit_id, 'unit_name' => $row->unit_name, 'quantity' => (float) $row->quantity])->all();
     }
@@ -87,14 +88,14 @@ class ReportController extends MobileController
     {
         $this->filters($request);
         $request->validate(['from_date' => ['prohibited'], 'to_date' => ['prohibited']]);
-        $query = Product::with(['unit', 'category']);
-        if ($low) $query->whereColumn('quantity', '<=', 'stock_level');
+        $query = Product::with(['unit', 'category', 'outletStocks']);
+        if ($low) $query->lowStock();
         if ($request->filled('search')) $query->where('name', 'like', '%'.$request->input('search').'%');
         if ($request->filled('category_id')) $query->where('category_id', $request->integer('category_id'));
         $extra = ['as_of' => now()->toISOString(), 'historical_snapshot' => false, 'quantity_totals' => $this->quantityTotals($query)];
         if ($request->user()->can('stock-value-report')) {
-            $extra['stock_value_at_cost'] = MobileApiData::money((clone $query)->selectRaw('COALESCE(SUM(quantity * cost_price), 0) as value')->value('value'));
-            $extra['stock_value_at_selling_price'] = MobileApiData::money((clone $query)->selectRaw('COALESCE(SUM(quantity * selling_price), 0) as value')->value('value'));
+            $extra['stock_value_at_cost'] = MobileApiData::money((clone $query)->leftJoin('outlet_stocks', 'outlet_stocks.product_id', '=', 'products.id')->selectRaw('COALESCE(SUM(outlet_stocks.quantity * products.cost_price), 0) as value')->value('value'));
+            $extra['stock_value_at_selling_price'] = MobileApiData::money((clone $query)->leftJoin('outlet_stocks', 'outlet_stocks.product_id', '=', 'products.id')->selectRaw('COALESCE(SUM(outlet_stocks.quantity * products.selling_price), 0) as value')->value('value'));
             $extra['currency'] = 'GHS';
         }
         return $this->paginated($query->orderBy('name')->orderBy('id'), $request, fn ($product) => MobileApiData::product($product, $request->user()), $extra);
@@ -134,7 +135,7 @@ class ReportController extends MobileController
         }
         if ($user->can('expense-list') || $user->can('report-expense')) $cards['expenses'] = ['amount' => MobileApiData::money($this->expenseQuery($request)->sum('amount')), 'currency' => 'GHS'];
         if ($user->can('stock-report') || $user->can('stock-value-report')) {
-            $cards['stock'] = ['product_count' => Product::count(), 'low_stock_count' => Product::whereColumn('quantity', '<=', 'stock_level')->count(),
+            $cards['stock'] = ['product_count' => Product::count(), 'low_stock_count' => Product::lowStock()->count(),
                 'quantity_totals' => $this->quantityTotals(Product::query()), 'historical_snapshot' => false];
         }
         if ($user->can('bank-account-list')) {

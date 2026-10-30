@@ -65,11 +65,19 @@ class User extends Authenticatable
 
     public function isCentral(): bool
     {
-        return is_null($this->outlet_id) || ($this->outlet && $this->outlet->isCentral());
+        if (strtolower(trim((string) ($this->user_type ?? ''))) === 'super admin' || $this->hasRole('Super Admin')) {
+            return true;
+        }
+
+        return (bool) ($this->outlet && $this->outlet->isCentral());
     }
 
     public function assignedOutletId(): ?int
     {
+        if ($this->isCentral()) {
+            return null;
+        }
+
         return $this->outlet_id;
     }
 

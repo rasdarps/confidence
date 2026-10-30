@@ -35,7 +35,7 @@
     }
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 0.75rem;
     }
     .info-item {
@@ -133,7 +133,16 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div>
                         <h4 class="mb-1">Credit Sale Settlement</h4>
-                        <p class="text-muted mb-0">Sale No: {{ $payment->sale->sale_no ?? 'N/A' }}</p>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="text-muted">Sale No: {{ $payment->sale->sale_no ?? 'N/A' }}</span>
+                            @if(optional($payment->sale)->outlet)
+                                <span class="badge {{ $payment->sale->outlet->is_central ? 'bg-primary' : 'bg-info' }}">
+                                    {{ $payment->sale->outlet->name }}
+                                </span>
+                            @else
+                                <span class="badge bg-secondary">Central</span>
+                            @endif
+                        </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="settlement-chip">Pending Balance</span>
@@ -161,6 +170,18 @@
                         <div class="info-item">
                             <div class="info-label">Email</div>
                             <div class="info-value">{{ $payment->customer->email ?? 'N/A' }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Branch / Station</div>
+                            <div class="info-value">
+                                @if(optional($payment->sale)->outlet)
+                                    <span class="badge {{ $payment->sale->outlet->is_central ? 'bg-primary' : 'bg-info' }}">
+                                        {{ $payment->sale->outlet->name }}
+                                    </span>
+                                @else
+                                    <span class="badge bg-secondary">Central</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 </div>

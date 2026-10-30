@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Admin\Report\Purchase;
 
+use App\Models\Outlet;
 use App\Models\PurchaseEditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -14,9 +15,14 @@ class PurchaseEditTrailDataTable extends DataTable
 {
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
+        $centralName = Outlet::where('is_central', true)->value('name') ?? 'Central Warehouse';
+
         return (new EloquentDataTable($query))
             ->addColumn('purchase_no', function ($row) {
                 return $row->purchase ? $row->purchase->purchase_no : 'N/A';
+            })
+            ->addColumn('receiving_location', function () use ($centralName) {
+                return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($centralName) . ' <small>(Central)</small></span>';
             })
             ->addColumn('edited_by_name', function ($row) {
                 return $row->editedBy ? $row->editedBy->name : 'System';
@@ -56,7 +62,7 @@ class PurchaseEditTrailDataTable extends DataTable
 
                 return implode('<br>', $parts);
             })
-            ->rawColumns(['changes_summary'])
+            ->rawColumns(['receiving_location', 'changes_summary'])
             ->setRowId('id');
     }
 
@@ -91,7 +97,7 @@ class PurchaseEditTrailDataTable extends DataTable
             ->setTableId('purchase-edit-trail-table')
             ->columns($this->getColumns())
             ->minifiedAjax(request()->getRequestUri())
-            ->orderBy(2, 'desc')
+            ->orderBy(3, 'desc')
             ->selectStyleSingle()
             ->parameters([
                 'dom' => "<'row'l>Bfrtip",
@@ -109,12 +115,13 @@ class PurchaseEditTrailDataTable extends DataTable
     {
         return [
             Column::make('purchase_no')->title('Purchase'),
+            Column::computed('receiving_location')->title('Receiving Location')->searchable(false)->orderable(false),
             Column::make('edited_by_name')->title('Edited By'),
             Column::make('created_at')->title('Edited At'),
             Column::make('reason')->title('Reason'),
-            Column::make('before_total')->title('Before Total'),
-            Column::make('after_total')->title('After Total'),
-            Column::make('delta_total')->title('Delta Total'),
+            Column::make('before_total')->title('Before Total (Gh¢)'),
+            Column::make('after_total')->title('After Total (Gh¢)'),
+            Column::make('delta_total')->title('Delta Total (Gh¢)'),
             Column::make('changes_summary')->title('Changes')->searchable(false)->orderable(false),
         ];
     }

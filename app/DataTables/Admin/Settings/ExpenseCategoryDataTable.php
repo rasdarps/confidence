@@ -22,6 +22,12 @@ class ExpenseCategoryDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('account_name', function ($row) {
+                if ($row->account) {
+                    return '<span class="badge bg-light text-dark border">[' . e($row->account->code) . '] ' . e($row->account->name) . '</span>';
+                }
+                return '<span class="badge bg-secondary">Default (5200 Operating Expenses)</span>';
+            })
             ->addColumn('edit_button', function ($row) {
                 $editUrl = route('expense-categories.edit', Crypt::encrypt($row->id));
                 $deleteUrl = route('expense-categories.destroy', Crypt::encrypt($row->id));
@@ -34,8 +40,8 @@ class ExpenseCategoryDataTable extends DataTable
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="' . $editUrl . '" method="GET">
                         ' . $csrf . '
-                        <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                            <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                        <button class="btn-action-edit table-edit-btn">
+                            <i class="fas fa-edit"></i>
                         </button>
                     </form>';
                 }
@@ -45,8 +51,8 @@ class ExpenseCategoryDataTable extends DataTable
                     <form class="d-inline-block m-0" action="' . $deleteUrl . '" method="POST">
                         ' . $csrf . '
                         ' . $method . '
-                        <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                            <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                        <button type="button" class="btn-action-delete delete-confirm-btn btn-delete">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
                 }
@@ -65,7 +71,7 @@ class ExpenseCategoryDataTable extends DataTable
                     ? Carbon::parse($row->updated_at)->format('jS F, Y g:i A')
                     : '';
             })
-            ->rawColumns(['edit_button'])
+            ->rawColumns(['edit_button', 'account_name'])
             ->setRowId('id');
     }
 
@@ -74,7 +80,7 @@ class ExpenseCategoryDataTable extends DataTable
      */
     public function query(ExpenseCategory $model): QueryBuilder
     {
-        return $model->newQuery()->orderBy('name', 'asc');
+        return $model->newQuery()->with('account')->orderBy('name', 'asc');
     }
 
     /**
@@ -100,7 +106,8 @@ class ExpenseCategoryDataTable extends DataTable
     public function getColumns(): array
     {
         $columns = [
-            Column::make('name')->title('Name'),
+            Column::make('name')->title('Category Name'),
+            Column::make('account_name')->title('GL Expense Account')->searchable(false),
             Column::make('created_at')->title('Created At'),
             Column::make('updated_at')->title('Updated At'),
         ];

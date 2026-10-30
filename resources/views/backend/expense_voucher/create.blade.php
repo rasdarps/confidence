@@ -12,8 +12,8 @@
                     <div class="card-header with-border">
                         <span class="card-title" style="font-size:20px;">Create | Expense Voucher</span>
 
-                        <a href="{{ route('expense-vouchers.index') }}" style="float:right">
-                            <button type="button" class="btn btn-primary modal_btn">View Expense Vouchers</button>
+                        <a href="{{ route('expense-vouchers.index') }}" class="btn btn-modern-header" style="float:right">
+                            <i class="fas fa-list me-1 mr-1"></i> View Expense Vouchers
                         </a>
 
                         <hr>
@@ -27,6 +27,37 @@
                                         <span><i class="mdi mdi-close"></i></span>
                                     </button>
                                     <ul id="errors"></ul>
+                                </div>
+
+                                <div class="row mb-3 align-items-center">
+                                    <div class="col-md-6 col-12">
+                                        @if(!empty($canChangeOutlet) && isset($outlets) && $outlets->count() > 1)
+                                            <div class="form-group mb-0">
+                                                <label for="outlet_id" class="fw-bold mb-1">
+                                                    <i class="fas fa-store text-primary me-1"></i> Branch / Outlet <span class="text-danger">*</span>
+                                                </label>
+                                                <select name="outlet_id" id="outlet_id" class="form-control select2" required>
+                                                    @foreach($outlets as $outlet)
+                                                        <option value="{{ $outlet->id }}" {{ (int) $outlet->id === (int) $currentOutletId ? 'selected' : '' }}>
+                                                            {{ $outlet->name }} {{ $outlet->is_central ? '(Central Warehouse)' : '(Retail Branch)' }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        @else
+                                            <input type="hidden" name="outlet_id" id="outlet_id" value="{{ $currentOutletId }}">
+                                            <div class="d-inline-flex align-items-center py-2 px-3 bg-light rounded border">
+                                                <i class="fas fa-store text-primary me-2"></i>
+                                                <span class="text-muted me-1">Branch / Outlet:</span>
+                                                <strong class="text-dark me-2">{{ $currentOutlet->name ?? 'Retail Branch' }}</strong>
+                                                @if(isset($currentOutlet) && $currentOutlet->is_central)
+                                                    <span class="badge bg-secondary">Central Warehouse</span>
+                                                @else
+                                                    <span class="badge bg-success">Retail Branch</span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
 
                                 <div class="row">
@@ -96,14 +127,19 @@
                                 </div>
 
                                 <div class="mb-3">
-                                    <button type="button" id="add-line" class="btn btn-info btn-sm">
-                                        <i class="fas fa-plus-circle"></i> Add Line
+                                    <button type="button" id="add-line" class="btn btn-modern-primary">
+                                        <i class="fas fa-plus-circle me-1 mr-1"></i> Add Line
                                     </button>
                                 </div>
 
-                                <div class="row">
+                                <div class="row mt-4 pt-3 border-top">
                                     <div class="col-12 text-center">
-                                        <button type="submit" class="btn btn-success mt-2">Submit Voucher</button>
+                                        <a href="{{ route('expense-vouchers.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                            <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                        </a>
+                                        <button type="submit" class="btn btn-modern-primary">
+                                            <i class="fas fa-check-circle me-1 mr-1"></i> Submit Expense Voucher
+                                        </button>
                                     </div>
                                 </div>
                             </form>

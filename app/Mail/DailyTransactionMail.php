@@ -15,7 +15,8 @@ class DailyTransactionMail extends Mailable
 
     public function __construct(
         public DailyTransactionEmail $emailRecord,
-        public string $companyName = ''
+        public string $companyName = '',
+        public array $breakdown = []
     ) {}
 
     public function envelope(): Envelope
@@ -32,9 +33,11 @@ class DailyTransactionMail extends Mailable
             with: [
                 'emailRecord' => $this->emailRecord,
                 'companyName' => $this->companyName,
+                'breakdown' => $this->breakdown,
                 'salesTotal' => number_format($this->emailRecord->sales_total, 2),
                 'expensesTotal' => number_format($this->emailRecord->expenses_total, 2),
                 'cashShortage' => number_format($this->emailRecord->cash_shortage, 2),
+                'netTotal' => number_format($this->emailRecord->sales_total - $this->emailRecord->expenses_total - $this->emailRecord->cash_shortage, 2),
                 'timestamp' => $this->emailRecord->sent_at->format('Y-m-d H:i:s'),
                 'businessDate' => $this->emailRecord->business_date->format('Y-m-d'),
                 'sentBy' => $this->emailRecord->sentBy?->name ?? 'System (Auto)',

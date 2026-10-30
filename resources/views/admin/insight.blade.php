@@ -12,17 +12,32 @@
     }
 
     .insight-card .metric-chart-card {
-        padding: 14px;
+        padding: 16px;
     }
 
     .insight-card .card-title {
         color: #0f172a;
         font-weight: 700;
+        font-size: 15px;
     }
 
     .insight-card canvas {
         background: rgba(255, 255, 255, 0.62);
         border-radius: 8px;
+    }
+
+    .insight-kpi-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #ffffff;
+        padding: 14px 16px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        height: 100%;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .insight-kpi-card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     }
 </style>
 @endsection
@@ -34,10 +49,21 @@
 <div class="row">
     <div class="col-12">
         <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-            <h4 class="mb-sm-0">Insight</h4>
+            <h4 class="mb-sm-0">
+                Insight &amp; Analytics
+                @if(isset($selectedOutlet) && $selectedOutlet)
+                    <span class="badge {{ $selectedOutlet->is_central ? 'bg-primary' : 'bg-info text-dark' }} ms-2 font-size-12">
+                        <i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }} ({{ $selectedOutlet->code }}){{ $selectedOutlet->is_central ? ' — Central HQ' : ' — Branch Station' }}
+                    </span>
+                @elseif(!empty($canFilterOutlets))
+                    <span class="badge bg-primary ms-2 font-size-12">
+                        <i class="ri-building-line me-1"></i>All Outlets &amp; Central Warehouse (Consolidated)
+                    </span>
+                @endif
+            </h4>
             <div class="page-title-right">
                 <ol class="breadcrumb m-0">
-                    <li class="breadcrumb-item"><a href="javascript: void(0);">{{ $company->name }} | POS</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">{{ $company->name ?? 'POS' }}</a></li>
                     <li class="breadcrumb-item active">Insight</li>
                 </ol>
             </div>
@@ -46,11 +72,128 @@
 </div>
 
 @can('dashboard-view')
+    @if(!empty($canFilterOutlets) && isset($outlets) && $outlets->count() > 0)
+    <!-- Multi-Outlet Filter Bar (Requires dashboard-outlet-filter permission) -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card dashboard-surface-card mb-0 shadow-sm" style="border: 1px solid #cbd5e1; border-radius: 10px;">
+                <div class="card-body py-2 px-3">
+                    <form method="GET" action="{{ route('insight') }}" class="row align-items-center g-2 mb-0">
+                        <div class="col-md-auto">
+                            <span class="fw-bold text-dark font-size-13">
+                                <i class="ri-store-2-line text-primary me-1"></i>Filter Insight by Outlet / Location:
+                            </span>
+                        </div>
+                        <div class="col-md-4 col-sm-6">
+                            <select name="outlet_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <option value="">All Outlets &amp; Central Warehouse (Consolidated)</option>
+                                @foreach($outlets as $outlet)
+                                    <option value="{{ $outlet->id }}" {{ (int) ($selectedOutletId ?? 0) === (int) $outlet->id ? 'selected' : '' }}>
+                                        {{ $outlet->name }} ({{ $outlet->code }}){{ $outlet->is_central ? ' — Central HQ' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @if(!empty($selectedOutletId))
+                        <div class="col-md-auto">
+                            <a href="{{ route('insight') }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="ri-refresh-line me-1"></i>Reset to Consolidated
+                            </a>
+                        </div>
+                        @endif
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    @elseif(!empty($selectedOutlet))
+    <!-- Locked Scope Banner for Branch Staff -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="alert alert-info border-0 shadow-sm mb-0 py-2 d-flex align-items-center justify-content-between" style="background: #f0fdfa; border-left: 4px solid #0F766E !important; color: #134e4a;">
+                <div>
+                    <i class="ri-store-2-line me-1 font-size-15" style="color: #0F766E;"></i>
+                    <strong>Branch Scoped Analytics:</strong> Analytics and trends are scoped strictly to <strong>{{ $selectedOutlet->name }} ({{ $selectedOutlet->code }})</strong>.
+                </div>
+                <span class="badge" style="background: #0F766E; color: #fff;">Branch Station</span>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Multi-Outlet Scope KPI Summary Strip -->
+    <div class="row mb-4 g-2">
+        <div class="col-xl-3 col-md-6">
+            <div class="insight-kpi-card" style="border-left: 4px solid #0F766E;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted font-size-11 font-weight-bold text-uppercase">Sales (Invoices)</div>
+                        <div class="font-size-19 font-weight-bold text-dark mt-1">Gh¢ {{ number_format((float) ($total_sales ?? 0), 2) }}</div>
+                        <small class="text-muted font-size-11">{{ number_format($total_invoice ?? 0) }} invoices posted</small>
+                    </div>
+                    <span class="badge bg-light text-dark border font-size-10">
+                        {{ isset($selectedOutlet) && $selectedOutlet ? $selectedOutlet->code : 'All Outlets' }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="insight-kpi-card" style="border-left: 4px solid #16a34a;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted font-size-11 font-weight-bold text-uppercase">Cash Collected vs Due</div>
+                        <div class="font-size-19 font-weight-bold text-success mt-1">Gh¢ {{ number_format((float) ($total_cash ?? 0), 2) }}</div>
+                        <small class="text-danger font-size-11">Due Credit: Gh¢ {{ number_format((float) ($total_credit_sales ?? 0), 2) }}</small>
+                    </div>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle font-size-10">Receipts</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="insight-kpi-card" style="border-left: 4px solid #0284c7;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted font-size-11 font-weight-bold text-uppercase">Active Stock Balance</div>
+                        <div class="font-size-19 font-weight-bold text-dark mt-1">{{ number_format((float) ($total_stock_balance ?? 0), 2) }} <span class="font-size-12 text-muted fw-normal">units</span></div>
+                        <small class="text-muted font-size-11">Cost Value: Gh¢ {{ number_format((float) ($total_stock_value ?? 0), 2) }}</small>
+                    </div>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle font-size-10">Inventory</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="insight-kpi-card" style="border-left: 4px solid #d97706;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-muted font-size-11 font-weight-bold text-uppercase">Operating Expenses</div>
+                        <div class="font-size-19 font-weight-bold text-warning mt-1">Gh¢ {{ number_format((float) ($total_expenses ?? 0), 2) }}</div>
+                        <small class="text-muted font-size-11">
+                            @if(isset($pendingTransfersCount) && $pendingTransfersCount > 0)
+                                <span class="text-primary font-weight-bold"><i class="ri-truck-line me-1"></i>{{ $pendingTransfersCount }} In-Transit Transfers</span>
+                            @else
+                                Location vouchers
+                            @endif
+                        </small>
+                    </div>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle font-size-10">Expenses</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1: Sales Trend & Purchase Trend -->
     <div class="row mt-1">
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Hybrid Sales Trend (Last 30 Days)</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Hybrid Sales Trend (Last 30 Days)</h4>
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <span class="badge bg-info text-dark font-size-11"><i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }}</span>
+                        @else
+                            <span class="badge bg-secondary font-size-11"><i class="ri-building-line me-1"></i>All Outlets</span>
+                        @endif
+                    </div>
                     <div style="position: relative; height: 320px;">
                         <canvas id="salesTrendChart"></canvas>
                     </div>
@@ -62,25 +205,36 @@
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Hybrid Purchase Trend (Last 30 Days)</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Hybrid Purchase Trend (Last 30 Days)</h4>
+                        <span class="badge bg-primary text-white font-size-11"><i class="ri-shield-check-line me-1"></i>Central HQ Procurement</span>
+                    </div>
                     <div style="position: relative; height: 320px;">
                         <canvas id="purchaseTrendChart"></canvas>
                     </div>
-                    <small class="text-muted d-block mt-2">Compares purchase invoice value, cash paid, and purchase credit due per day with a dashed 7-day moving average on purchase invoice value.</small>
+                    <small class="text-muted d-block mt-2">Central Procurement: Supplier purchases, supplier payments, and vendor credits are managed centrally at Central Warehouse (HQ) on behalf of retail branches.</small>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Charts Row 2: Category Revenue Contribution & Stock Health Risk -->
     <div class="row mt-4">
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Top Category Contribution</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Top Category Contribution</h4>
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <span class="badge bg-info text-dark font-size-11"><i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }}</span>
+                        @else
+                            <span class="badge bg-secondary font-size-11"><i class="ri-building-line me-1"></i>Consolidated</span>
+                        @endif
+                    </div>
                     <div style="position: relative; height: 360px;">
                         <canvas id="topCategoriesChart"></canvas>
                     </div>
-                    <small class="text-muted d-block mt-2">Ranks the highest-performing categories by total sales value so you can see which categories contribute most to revenue.</small>
+                    <small class="text-muted d-block mt-2">Ranks the highest-performing categories by total sales value for this location scope to show which lines drive revenue.</small>
                 </div>
             </div>
         </div>
@@ -88,25 +242,40 @@
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Stock Health Risk (Shortfall)</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Stock Health Risk (Shortfall)</h4>
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <span class="badge bg-info text-dark font-size-11"><i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }}</span>
+                        @else
+                            <span class="badge bg-secondary font-size-11"><i class="ri-building-line me-1"></i>All Outlet Locations</span>
+                        @endif
+                    </div>
                     <div style="position: relative; height: 360px;">
                         <canvas id="stockRiskChart"></canvas>
                     </div>
-                    <small class="text-muted d-block mt-2">Displays products below stock level and the quantity shortfall, helping you prioritize urgent restocking.</small>
+                    <small class="text-muted d-block mt-2">Displays products below minimum re-order level and their quantity shortfall to prioritize stock transfers and replenishments.</small>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Charts Row 3: Annual Monthly Sales & Purchases -->
     <div class="row mt-4">
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Monthly Hybrid Overview ({{ $currentYear }})</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Monthly Sales Hybrid Overview ({{ $currentYear }})</h4>
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <span class="badge bg-info text-dark font-size-11"><i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }}</span>
+                        @else
+                            <span class="badge bg-secondary font-size-11"><i class="ri-building-line me-1"></i>All Outlets</span>
+                        @endif
+                    </div>
                     <div style="position: relative; height: 340px;">
                         <canvas id="monthlySalesChart"></canvas>
                     </div>
-                    <small class="text-muted d-block mt-2">Shows invoice value, cash collected, and credit due by month for the current year.</small>
+                    <small class="text-muted d-block mt-2">Shows monthly invoice revenue, cash collected, and credit due for {{ $currentYear }} within this scope.</small>
                 </div>
             </div>
         </div>
@@ -114,29 +283,40 @@
         <div class="col-xl-6">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Monthly Purchase Hybrid Overview ({{ $currentYear }})</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Monthly Purchase Hybrid Overview ({{ $currentYear }})</h4>
+                        <span class="badge bg-primary text-white font-size-11"><i class="ri-shield-check-line me-1"></i>Central HQ Procurement</span>
+                    </div>
                     <div style="position: relative; height: 340px;">
                         <canvas id="monthlyPurchaseChart"></canvas>
                     </div>
-                    <small class="text-muted d-block mt-2">Shows purchase invoice value, cash paid, and purchase credit due by month for the current year.</small>
+                    <small class="text-muted d-block mt-2">Central Procurement: Purchase invoice totals, cash payments, and payables by month for {{ $currentYear }}.</small>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Charts Row 4: Expense Insight -->
     <div class="row mt-4">
         <div class="col-12">
             <div class="card insight-card">
                 <div class="card-body metric-chart-card">
-                    <h4 class="card-title">Expense Insight (Spent Amount by Category)</h4>
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                        <h4 class="card-title mb-0">Expense Insight (Spent Amount by Category)</h4>
+                        @if(isset($selectedOutlet) && $selectedOutlet)
+                            <span class="badge bg-info text-dark font-size-11"><i class="ri-store-2-line me-1"></i>{{ $selectedOutlet->name }}</span>
+                        @else
+                            <span class="badge bg-secondary font-size-11"><i class="ri-building-line me-1"></i>All Locations</span>
+                        @endif
+                    </div>
                     <div style="position: relative; height: 340px;">
                         <canvas id="expenseInsightChart"></canvas>
                     </div>
                     <small class="text-muted d-block mt-2">
                         @if(empty($expenseInsightTotals))
-                            No expense insight available yet. Categories appear here once spending is above 0.
+                            No expense insight available yet. Categories appear here once spending is recorded.
                         @else
-                            Shows how much has been spent per expense category.
+                            Shows operating spending per expense category for this location scope.
                         @endif
                     </small>
                 </div>

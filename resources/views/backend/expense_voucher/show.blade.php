@@ -30,20 +30,22 @@
                         <div class="row mb-3">
                             <div class="col-md-3"><strong>Date:</strong> {{ optional($voucher->voucher_date)->format('d-m-Y') }}</div>
                             <div class="col-md-3"><strong>Reference:</strong> {{ $voucher->reference_no ?: '-' }}</div>
-                            @can('user-audit-view')
-                                @php
-                                    $viewerIsSuperAdmin = auth()->check() && strtolower((string) (auth()->user()->user_type ?? '')) === 'super admin';
-                                    $createdBy = $voucher->createdBy;
-                                    $maskCreatedBy = !$viewerIsSuperAdmin && $createdBy && strtolower((string) ($createdBy->user_type ?? '')) === 'super admin';
-                                @endphp
-                                <div class="col-md-3"><strong>Created By:</strong> {{ $maskCreatedBy ? '-' : (optional($createdBy)->name ?: '-') }}</div>
-                            @endcan
-                            <div class="col-md-3"><strong>Total:</strong> {{ number_format((float) $voucher->total_amount, 2) }}</div>
+                            <div class="col-md-3"><strong>Branch:</strong> <span class="badge bg-light text-dark border">{{ $voucher->outlet ? $voucher->outlet->name : 'Central Warehouse' }}</span> {{ optional($voucher->outlet)->is_central ? '(Central)' : '' }}</div>
+                            <div class="col-md-3"><strong>Total:</strong> Gh¢ {{ number_format((float) $voucher->total_amount, 2) }}</div>
                         </div>
+                        @can('user-audit-view')
+                            @php
+                                $viewerIsSuperAdmin = auth()->check() && strtolower((string) (auth()->user()->user_type ?? '')) === 'super admin';
+                                $createdBy = $voucher->createdBy;
+                                $maskCreatedBy = !$viewerIsSuperAdmin && $createdBy && strtolower((string) ($createdBy->user_type ?? '')) === 'super admin';
+                            @endphp
+                            <div class="row mb-3">
+                                <div class="col-md-6"><strong>Created By:</strong> {{ $maskCreatedBy ? '-' : (optional($createdBy)->name ?: '-') }}</div>
+                                <div class="col-md-6"><strong>Notes:</strong> {{ $voucher->notes ?: '-' }}</div>
+                            </div>
+                        @endcan
 
-                        <div class="row mb-3">
-                            <div class="col-md-12"><strong>Notes:</strong> {{ $voucher->notes ?: '-' }}</div>
-                        </div>
+                        
 
                         <div class="table-responsive">
                             <table class="table table-bordered table-striped">

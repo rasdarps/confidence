@@ -16,7 +16,7 @@ return [
 
     // When enabled, users marked as requiring password change must update
     // their password before accessing the rest of the system.
-    'require_password_change_on_first_login' => env('POS_REQUIRE_PASSWORD_CHANGE_ON_FIRST_LOGIN', false),
+    'require_password_change_on_first_login' => env('POS_REQUIRE_PASSWORD_CHANGE_ON_FIRST_LOGIN', true),
 
     // When enabled, daily transaction report email is sent automatically at configured time.
     'enable_daily_email_report' => env('POS_ENABLE_DAILY_EMAIL_REPORT', false),

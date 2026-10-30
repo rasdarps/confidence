@@ -12,98 +12,105 @@ use Illuminate\Support\Facades\Crypt;
 <div class="container-fluid">
 
     <div class="row">
-        <div class="col-12">
+        <div class="col-12 col-xl-10 mx-auto">
             <div class="card">
-                <div class="card-header with-border">
-                    <span class="card-title" style="font-size:20px;">Edit | Product </span>
+                <div class="card-header with-border d-flex align-items-center justify-content-between">
+                    <span class="card-title" style="font-size:20px;">Edit | Product</span>
 
-                    <a href="{{ route('products.index') }}" style="float:right">
+                    <a href="{{ route('products.index') }}">
                         <button type="button" class="btn btn-primary modal_btn">
                             View Products
                         </button>
                     </a>
+                </div>
 
-                    <hr>
-
-                    <div class="card-body">
-
-                        <form action="{{ route('products.update', Crypt::encrypt($product->id)) }}" method="POST" id="myForm" enctype="multipart/form-data">
-                            @csrf
-                            @method('PATCH')  {{-- Using PATCH method --}}
-
-                            {{-- backend error alerts --}}
-                            <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
-                                <button type="button" class="close h-100" data-dismiss="alert" aria-label="Close">
-                                    <span><i class="mdi mdi-close"></i></span>
-                                </button>
-                                <ul id="errors"></ul>
-                            </div>
-
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="name"><strong>Product Name <span class="text-danger">*</span></strong></label>
-                                        <input type="text" id="name" name="name" class="form-control" value="{{ old('name', $product->name) }}" placeholder="enter product name">
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="unit_id"><strong>Unit Name <span class="text-danger">*</span></strong></label>
-                                        <select name="unit_id" id="unit_id" class="form-control select2" aria-label="Select unit">
-                                            <option disabled value="">Select Unit</option>
-                                            @foreach($units as $unit)
-                                            <option value="{{ $unit->id }}" {{ (old('unit_id', $product->unit_id) == $unit->id) ? 'selected' : '' }}>{{ $unit->name }}</option>
-                                           @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            {{-- row 1 ends --}}
-
-                            <div class="row g-3 mt-1">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="category_id"><strong>Category Name <span class="text-danger">*</span></strong></label>
-                                        <select name="category_id" id="category_id" class="form-control select2" aria-label="Select category">
-                                            <option disabled value="">Select Category</option>
-                                            @foreach($categories as $category)
-                                            <option value="{{ $category->id }}" {{ (old('category_id', $product->category_id) == $category->id) ? 'selected' : '' }}>{{ $category->name }}</option>
-                                           @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="barcode"><strong>Barcode</strong></label>
-                                        <input type="text" id="barcode" name="barcode" class="form-control" value="{{ old('barcode', $product->barcode) }}" placeholder="enter barcode (EAN-13 preferred)">
-                                        <small class="text-muted">Temporary manual edit field for fixing older products without generated EAN-13.</small>
-                                    </div>
-                                </div>
-                            </div>
-                            {{-- row 2 ends --}}
-
-                            <div class="row g-3 mt-1">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="stock_level"><strong>Stock Level <span class="text-danger">*</span></strong></label>
-                                        <input type="number" id="stock_level" name="stock_level" class="form-control" value="{{ old('stock_level', $product->stock_level) }}" placeholder="enter stock level" min="0">
-                                    </div>
-                                </div>
-                            </div>
-                            {{-- row 3 ends --}}
-
-                            <div class="row mt-4">
-                                <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-success mt-3">Update Product</button>
-                                </div>
-                            </div>
-                            {{-- row 4 ends --}}
-
-                        </form>
-
+                <div class="card-body">
+                    <div class="alert alert-info d-flex align-items-center mb-3">
+                        <i class="fas fa-boxes fa-lg mr-2 me-2"></i>
+                        <div>
+                            <strong>Central Master Catalog:</strong> Editing this product updates the master definition enterprise-wide. Changes to Name, Category, Unit, or Barcode immediately propagate to all branch stations and POS registers.
+                        </div>
                     </div>
+
+                    <form action="{{ route('products.update', Crypt::encrypt($product->id)) }}" method="POST" id="myForm" enctype="multipart/form-data">
+                        @csrf
+                        @method('PATCH')
+
+                        {{-- backend error alerts --}}
+                        <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
+                            <button type="button" class="close h-100" data-dismiss="alert" aria-label="Close">
+                                <span><i class="mdi mdi-close"></i></span>
+                            </button>
+                            <ul id="errors"></ul>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="name"><strong>Product Name <span class="text-danger">*</span></strong></label>
+                                    <input type="text" id="name" name="name" class="form-control" value="{{ old('name', $product->name) }}" placeholder="Enter product name">
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="unit_id"><strong>Unit Name <span class="text-danger">*</span></strong></label>
+                                    <select name="unit_id" id="unit_id" class="form-control select2" aria-label="Select unit">
+                                        <option disabled value="">Select Unit</option>
+                                        @foreach($units as $unit)
+                                        <option value="{{ $unit->id }}" {{ (old('unit_id', $product->unit_id) == $unit->id) ? 'selected' : '' }}>{{ $unit->name }}</option>
+                                       @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- row 1 ends --}}
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="category_id"><strong>Category Name <span class="text-danger">*</span></strong></label>
+                                    <select name="category_id" id="category_id" class="form-control select2" aria-label="Select category">
+                                        <option disabled value="">Select Category</option>
+                                        @foreach($categories as $category)
+                                        <option value="{{ $category->id }}" {{ (old('category_id', $product->category_id) == $category->id) ? 'selected' : '' }}>{{ $category->name }}</option>
+                                       @endforeach
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="barcode"><strong>Barcode</strong></label>
+                                    <input type="text" id="barcode" name="barcode" class="form-control" value="{{ old('barcode', $product->barcode) }}" placeholder="Enter barcode (EAN-13 preferred)">
+                                    <small class="text-muted">Master barcode used across all POS scanners and warehouse stations.</small>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- row 2 ends --}}
+
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="stock_level"><strong>Low Stock Threshold (Central Warehouse) <span class="text-danger">*</span></strong></label>
+                                    <input type="number" id="stock_level" name="stock_level" class="form-control" value="{{ old('stock_level', $centralStockLevel ?? 1) }}" placeholder="Enter low stock threshold" min="0">
+                                    <small class="text-muted">Restock alert threshold for Central Warehouse. Branch stations manage local thresholds independently.</small>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- row 3 ends --}}
+
+                        <div class="row mt-4">
+                            <div class="col-12 text-center">
+                                <button type="submit" class="btn btn-primary mt-3" style="background-color: #0F766E; border-color: #0F766E; padding: 8px 26px;">
+                                    <i class="fas fa-save mr-1 me-1"></i> Update Product
+                                </button>
+                            </div>
+                        </div>
+                        {{-- row 4 ends --}}
+
+                    </form>
+
                 </div>
             </div>
         </div>

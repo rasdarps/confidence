@@ -31,20 +31,26 @@
                         <div class="row mb-3">
                             <div class="col-md-3"><strong>Date:</strong> {{ optional($adjustment->adjustment_date)->format('d-m-Y') }}</div>
                             <div class="col-md-3"><strong>Reference:</strong> {{ $adjustment->reference_no ?: '-' }}</div>
+                            <div class="col-md-3">
+                                <strong>Branch / Outlet:</strong>
+                                <span class="badge {{ optional($adjustment->outlet)->is_central ? 'bg-primary' : 'bg-info' }}">
+                                    {{ optional($adjustment->outlet)->name ?: 'Central Warehouse' }}
+                                </span>
+                            </div>
                             <div class="col-md-3"><strong>Type:</strong> {{ ucfirst($adjustment->adjustment_type) }}</div>
-                            <div class="col-md-3"><strong>Reason:</strong> {{ $adjustment->reason ?: '-' }}</div>
                         </div>
 
                         <div class="row mb-3">
+                            <div class="col-md-4"><strong>Reason:</strong> {{ $adjustment->reason ?: '-' }}</div>
                             @can('user-audit-view')
                                 @php
                                     $viewerIsSuperAdmin = auth()->check() && strtolower((string) (auth()->user()->user_type ?? '')) === 'super admin';
                                     $createdBy = $adjustment->createdBy;
                                     $maskCreatedBy = !$viewerIsSuperAdmin && $createdBy && strtolower((string) ($createdBy->user_type ?? '')) === 'super admin';
                                 @endphp
-                                <div class="col-md-6"><strong>Created By:</strong> {{ $maskCreatedBy ? '-' : (optional($createdBy)->name ?: '-') }}</div>
+                                <div class="col-md-4"><strong>Created By:</strong> {{ $maskCreatedBy ? '-' : (optional($createdBy)->name ?: '-') }}</div>
                             @endcan
-                            <div class="col-md-6"><strong>Notes:</strong> {{ $adjustment->notes ?: '-' }}</div>
+                            <div class="col-md-4"><strong>Notes:</strong> {{ $adjustment->notes ?: '-' }}</div>
                         </div>
 
                         <div class="table-responsive">

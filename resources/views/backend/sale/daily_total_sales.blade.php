@@ -19,13 +19,27 @@
             <div class="card-body">
                 <form method="GET" action="{{ route('sales.daily-total-sales') }}" class="row g-2 align-items-end">
                     <div class="{{ $canSelectCashier ? 'col-md-3 col-sm-6' : 'col-md-4 col-sm-6' }}">
-                        <label for="date" class="form-label">Select Date</label>
+                        <label for="date" class="form-label font-weight-bold">Select Date</label>
                         <input type="date" id="date" name="date" class="form-control" value="{{ $selectedDate }}" required>
                     </div>
+
                     @if($canSelectCashier)
-                        <div class="col-md-4 col-sm-6">
-                            <label for="user_id" class="form-label">Select Cashier</label>
-                            <select id="user_id" name="user_id" class="form-control" required>
+                        <div class="col-md-3 col-sm-6">
+                            <label for="outlet_id" class="form-label font-weight-bold">Branch / Outlet</label>
+                            <select id="outlet_id" name="outlet_id" class="form-control select2">
+                                <option value="all" {{ empty($selectedOutletId) ? 'selected' : '' }}>All Outlets & Branches</option>
+                                @foreach($outlets as $outlet)
+                                    <option value="{{ $outlet->id }}" {{ (int) $selectedOutletId === (int) $outlet->id ? 'selected' : '' }}>
+                                        {{ $outlet->name }} {{ $outlet->is_central ? '(Central)' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-3 col-sm-6">
+                            <label for="user_id" class="form-label font-weight-bold">Select Cashier</label>
+                            <select id="user_id" name="user_id" class="form-control select2">
+                                <option value="all" {{ empty($selectedUserId) ? 'selected' : '' }}>All Cashiers</option>
                                 @forelse($cashiers as $cashier)
                                     <option value="{{ $cashier->id }}" {{ (int) $selectedUserId === (int) $cashier->id ? 'selected' : '' }}>
                                         {{ $cashier->username }}{{ !empty($cashier->name) ? ' (' . $cashier->name . ')' : '' }}
@@ -36,11 +50,14 @@
                             </select>
                         </div>
                     @endif
-                    <div class="{{ $canSelectCashier ? 'col-md-5 col-sm-12' : 'col-md-8 col-sm-6' }} d-flex gap-2">
-                        <button type="submit" class="btn btn-dark">Load</button>
+
+                    <div class="{{ $canSelectCashier ? 'col-md-3 col-sm-12' : 'col-md-8 col-sm-6' }} d-flex gap-2">
+                        <button type="submit" class="btn btn-dark">
+                            <i class="fas fa-filter me-1"></i> Load
+                        </button>
                         @can('sale-print')
                             <button type="button" onclick="window.print()" class="btn btn-success">
-                                <i class="fa fa-print"></i> Print
+                                <i class="fa fa-print me-1"></i> Print
                             </button>
                         @endcan
                     </div>
@@ -52,10 +69,17 @@
             <div class="card">
                 <div class="card-body">
                     <div class="text-center">
-                        <h5 class="mb-1">{{ $companyInfo->name ?? 'N/A' }}</h5>
-                        <div>{{ $companyInfo->address ?? 'N/A' }}</div>
-                        <div>{{ $companyInfo->phone ?? 'N/A' }} | TIN: {{ $companyInfo->tin_number ?? 'N/A' }}</div>
-                        <h6 class="mt-2">Daily Total Sales Report</h6>
+                        <h5 class="mb-1 font-weight-bold">{{ $companyInfo->name ?? 'N/A' }}</h5>
+                        @if($selectedOutlet)
+                            <div class="fw-bold">{{ $selectedOutlet->name }} {{ $selectedOutlet->is_central ? '(Central Warehouse)' : '(Retail Branch)' }}</div>
+                            @if($selectedOutlet->address)<div>{{ $selectedOutlet->address }}</div>@endif
+                            @if($selectedOutlet->phone)<div>Tel: {{ $selectedOutlet->phone }}</div>@endif
+                        @else
+                            <div>{{ $companyInfo->address ?? 'N/A' }}</div>
+                            <div>{{ $companyInfo->phone ?? 'N/A' }}</div>
+                        @endif
+                        <div>TIN: {{ $companyInfo->tin_number ?? 'N/A' }}</div>
+                        <h6 class="mt-2 text-uppercase font-weight-bold">Daily Total Sales Report</h6>
                     </div>
 
                     <hr>
@@ -65,15 +89,24 @@
                             <thead>
                                 <tr>
                                     <th>Date</th>
-                                    <th>Username</th>
-                                    <th class="text-end">Total Sales Amount</th>
+                                    <th>Branch / Outlet</th>
+                                    <th>Cashier</th>
+                                    <th class="text-end">Total Sales Amount (Gh¢)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
                                     <td>{{ \Carbon\Carbon::parse($selectedDate)->format('d-m-Y') }}</td>
+                                    <td>
+                                        @if($selectedOutlet)
+                                            <span class="badge bg-light text-dark border">{{ $selectedOutlet->name }}</span>
+                                            {{ $selectedOutlet->is_central ? '(Central)' : '' }}
+                                        @else
+                                            <span class="badge bg-secondary">All Outlets</span>
+                                        @endif
+                                    </td>
                                     <td>{{ $username }}</td>
-                                    <td class="text-end">{{ number_format($totalSalesAmount, 2) }}</td>
+                                    <td class="text-end font-weight-bold">{{ number_format($totalSalesAmount, 2) }}</td>
                                 </tr>
                             </tbody>
                         </table>

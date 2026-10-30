@@ -15,15 +15,20 @@
                         <div class="card-header with-border">
                             <span class="card-title" style="font-size:20px;">Create | Unit </span>
 
-                            <a href="{{route('units.index')}}" style="float:right">
-                                <button type="button" class="btn btn-primary modal_btn">
-                                    View Units
-                                </button>
+                            <a href="{{route('units.index')}}" class="btn btn-modern-header" style="float:right">
+                                <i class="fas fa-list me-1 mr-1"></i> View Units
                             </a>
 
                               <hr>
 
                             <div class="card-body">
+
+                                <div class="alert alert-info d-flex align-items-center mb-3">
+                                    <i class="fas fa-balance-scale fa-lg mr-2 me-2"></i>
+                                    <div>
+                                        <strong>Enterprise Measurement Units:</strong> Units created here are part of the master catalog and will be available across Central Warehouse stock management, inter-outlet stock transfers, and retail branch sales.
+                                    </div>
+                                </div>
 
                                 <form action="{{ route('units.store') }}" method="POST" id="myForm" enctype="multipart/form-data">
                                     @csrf
@@ -45,9 +50,14 @@
                                     
                                     {{-- row 1 ends --}}
 
-                                    <div class="row">
+                                    <div class="row mt-4 pt-3 border-top">
                                         <div class="col-12 text-center">
-                                            <button type="submit" class="btn btn-success mt-3">Submit</button>
+                                            <a href="{{ route('units.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                                <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                            </a>
+                                            <button type="submit" class="btn btn-modern-primary">
+                                                <i class="fas fa-check-circle me-1 mr-1"></i> Create Unit
+                                            </button>
                                         </div>
                                     </div>
                                     {{-- row 2 ends --}}
@@ -217,12 +227,13 @@
                                 scrollTop: $('#errorAlert').offset().top - 100
                             }, 500);
                         } else {
+                            var errMsg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'An error occurred. Please try again later.';
                             $('#errorAlert').show();
-                            $('#errors').append('<li>An error occurred. Please try again later.</li>');
+                            $('#errors').append('<li>' + errMsg + '</li>');
                             if (typeof Notiflix !== 'undefined') {
-                                Notiflix.Notify.failure('An error occurred. Please try again later.');
+                                Notiflix.Notify.failure(errMsg);
                             } else {
-                                alert('An error occurred. Please try again later.');
+                                alert(errMsg);
                             }
                         }
                     }

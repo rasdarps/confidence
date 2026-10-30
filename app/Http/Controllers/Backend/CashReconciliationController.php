@@ -6,6 +6,7 @@ use App\DataTables\Admin\Settings\CashReconciliationDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\CashReconciliation;
 use App\Models\ExpenseVoucherItem;
+use App\Models\Outlet;
 use App\Models\Payment;
 use App\Services\Accounting\AccountingIntegrationService;
 use Illuminate\Http\Request;
@@ -34,41 +35,51 @@ class CashReconciliationController extends Controller
             && ($viewerIsSuperAdmin || $currentUser->hasRole('Manager') || $currentUser->hasRole('Supervisor'));
 
         $isRestrictedToOwnReconciles = ! $viewerCanSeeAllCashiers;
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
 
-        return $dataTable->render('backend.cash_reconciliation.index', compact('isRestrictedToOwnReconciles'));
+        return $dataTable->render('backend.cash_reconciliation.index', compact('isRestrictedToOwnReconciles', 'outlets', 'assignedOutletId'));
     }
 
     public function create()
     {
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        if ($assignedOutletId) {
+            $currentOutletId = $assignedOutletId;
+            $canChangeOutlet = false;
+        } else {
+            $central = $outlets->firstWhere('is_central', true);
+            $currentOutletId = $central ? $central->id : ($outlets->first()?->id ?? 1);
+            $canChangeOutlet = true;
+        }
+
+        $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
         $businessDate = now()->format('Y-m-d');
         $openingFloat = 0;
 
-        $expected = $this->computeExpectedForUser(Auth::id(), $businessDate, $openingFloat);
+        $expected = $this->computeExpectedForUser(Auth::id(), $businessDate, $openingFloat, $currentOutletId);
 
-        return view('backend.cash_reconciliation.create', compact('businessDate', 'openingFloat', 'expected'));
+        return view('backend.cash_reconciliation.create', compact('businessDate', 'openingFloat', 'expected', 'outlets', 'currentOutletId', 'currentOutlet', 'canChangeOutlet'));
     }
 
     public function edit($routeId)
     {
         try {
-            $decryptedId = $routeId;
-
-            try {
-                $decryptedId = Crypt::decryptString((string) $routeId);
-            } catch (\Throwable $e) {
-                // Keep the original route value when it is already numeric.
-            }
-
-            $reconciliation = CashReconciliation::with(['user', 'createdBy', 'approvedBy', 'reversedBy'])
-                ->find($decryptedId);
-
-            if (! $reconciliation && is_numeric($routeId)) {
-                $reconciliation = CashReconciliation::with(['user', 'createdBy', 'approvedBy', 'reversedBy'])
-                    ->find((int) $routeId);
-            }
+            $reconciliation = $this->findReconciliation($routeId, ['user', 'createdBy', 'approvedBy', 'reversedBy', 'outlet']);
 
             if (! $reconciliation) {
                 return redirect()->route('cash-reconciliations.index')->with('error', 'Cash reconciliation not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $reconciliation->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('cash-reconciliations.index')->with('error', 'You do not have access to reconciliations from other branches.');
             }
 
             if ($reconciliation->status === 'approved') {
@@ -79,7 +90,8 @@ class CashReconciliationController extends Controller
             $expected = $this->computeExpectedForUser(
                 (int) $reconciliation->user_id,
                 (string) $reconciliation->business_date->format('Y-m-d'),
-                (float) $reconciliation->opening_float
+                (float) $reconciliation->opening_float,
+                (int) $reconciliation->outlet_id
             );
 
             return view('backend.cash_reconciliation.edit', compact('reconciliation', 'expected'));
@@ -93,10 +105,15 @@ class CashReconciliationController extends Controller
         $validated = $request->validate([
             'business_date' => 'required|date',
             'opening_float' => 'nullable|numeric|min:0',
+            'outlet_id' => 'nullable|exists:outlets,id',
         ]);
 
         $openingFloat = (float) ($validated['opening_float'] ?? 0);
-        $expected = $this->computeExpectedForUser(Auth::id(), $validated['business_date'], $openingFloat);
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outletId = $assignedOutletId ?: ((int) ($validated['outlet_id'] ?? 0) ?: null);
+
+        $expected = $this->computeExpectedForUser(Auth::id(), $validated['business_date'], $openingFloat, $outletId);
 
         return response()->json($expected);
     }
@@ -104,6 +121,7 @@ class CashReconciliationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'outlet_id' => 'nullable|exists:outlets,id',
             'business_date' => 'required|date',
             'opening_float' => 'required|numeric|min:0',
             'physical_counted_cash' => 'required|numeric|min:0',
@@ -111,6 +129,9 @@ class CashReconciliationController extends Controller
         ]);
 
         $userId = Auth::id();
+        $currentUser = Auth::user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outletId = $assignedOutletId ?: ((int) $request->input('outlet_id') ?: (Outlet::where('is_central', true)->value('id') ?? 1));
 
         $existing = CashReconciliation::where('business_date', $validated['business_date'])
             ->where('user_id', $userId)
@@ -122,7 +143,7 @@ class CashReconciliationController extends Controller
 
         $openingFloat = (float) $validated['opening_float'];
         $physicalCash = (float) $validated['physical_counted_cash'];
-        $expected = $this->computeExpectedForUser($userId, $validated['business_date'], $openingFloat);
+        $expected = $this->computeExpectedForUser($userId, $validated['business_date'], $openingFloat, $outletId);
 
         $variance = round($physicalCash - $expected['expected_closing_cash'], 2);
         $varianceType = 'balanced';
@@ -133,7 +154,6 @@ class CashReconciliationController extends Controller
             $varianceType = 'shortage';
         }
 
-        $outletId = Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
         CashReconciliation::create([
             'outlet_id' => $outletId,
             'business_date' => $validated['business_date'],
@@ -156,24 +176,18 @@ class CashReconciliationController extends Controller
     public function show($routeId)
     {
         try {
-            $decryptedId = $routeId;
-
-            try {
-                $decryptedId = Crypt::decryptString((string) $routeId);
-            } catch (\Throwable $e) {
-                // Keep the original route value when it is already numeric.
-            }
-
-            $reconciliation = CashReconciliation::with(['user', 'createdBy', 'approvedBy', 'reversedBy'])
-                ->find($decryptedId);
-
-            if (! $reconciliation && is_numeric($routeId)) {
-                $reconciliation = CashReconciliation::with(['user', 'createdBy', 'approvedBy', 'reversedBy'])
-                    ->find((int) $routeId);
-            }
+            $reconciliation = $this->findReconciliation($routeId, ['user', 'createdBy', 'approvedBy', 'reversedBy', 'outlet']);
 
             if (! $reconciliation) {
                 return redirect()->route('cash-reconciliations.index')->with('error', 'Cash reconciliation not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $reconciliation->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('cash-reconciliations.index')->with('error', 'You do not have access to reconciliations from other branches.');
             }
 
             return view('backend.cash_reconciliation.show', compact('reconciliation'));
@@ -189,6 +203,14 @@ class CashReconciliationController extends Controller
 
             if (! $reconciliation) {
                 return redirect()->route('cash-reconciliations.index')->with('error', 'Cash reconciliation not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $reconciliation->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('cash-reconciliations.index')->with('error', 'You do not have access to reconciliations from other branches.');
             }
 
             if ($reconciliation->status === 'approved') {
@@ -212,7 +234,7 @@ class CashReconciliationController extends Controller
                 return redirect()->back()->withInput()->with('error', 'Another reconciliation already exists for this cashier and date.');
             }
 
-            $expected = $this->computeExpectedForUser((int) $reconciliation->user_id, $validated['business_date'], (float) $validated['opening_float']);
+            $expected = $this->computeExpectedForUser((int) $reconciliation->user_id, $validated['business_date'], (float) $validated['opening_float'], (int) $reconciliation->outlet_id);
             $variance = round((float) $validated['physical_counted_cash'] - $expected['expected_closing_cash'], 2);
 
             $varianceType = 'balanced';
@@ -251,6 +273,14 @@ class CashReconciliationController extends Controller
                 return redirect()->route('cash-reconciliations.index')->with('error', 'Cash reconciliation not found.');
             }
 
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $reconciliation->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('cash-reconciliations.index')->with('error', 'You do not have access to approve reconciliations from other branches.');
+            }
+
             if ($reconciliation->status === 'approved') {
                 return redirect()->back()->with('error', 'Reconciliation is already approved.');
             }
@@ -280,6 +310,14 @@ class CashReconciliationController extends Controller
 
             if (! $reconciliation) {
                 return redirect()->route('cash-reconciliations.index')->with('error', 'Cash reconciliation not found.');
+            }
+
+            $currentUser = Auth::user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $isSuperAdmin = $currentUser && strtolower((string) ($currentUser->user_type ?? '')) === 'super admin';
+
+            if ($assignedOutletId && ! $isSuperAdmin && (int) $reconciliation->outlet_id !== (int) $assignedOutletId) {
+                return redirect()->route('cash-reconciliations.index')->with('error', 'You do not have access to reverse reconciliations from other branches.');
             }
 
             if ($reconciliation->status !== 'approved') {
@@ -340,21 +378,30 @@ class CashReconciliationController extends Controller
         return null;
     }
 
-    private function computeExpectedForUser(int $userId, string $businessDate, float $openingFloat): array
+    private function computeExpectedForUser(int $userId, string $businessDate, float $openingFloat, ?int $outletId = null): array
     {
-        $expectedCashSales = (float) Payment::query()
+        $salesQuery = Payment::query()
             ->join('sales', 'sales.id', '=', 'payments.sale_id')
             ->where('sales.created_by', $userId)
             ->whereDate('sales.date', $businessDate)
-            ->whereNull('sales.cancelled_at')
-            ->sum('payments.paid_amount');
+            ->whereNull('sales.cancelled_at');
 
-        $expectedCashExpenses = (float) ExpenseVoucherItem::query()
-            ->whereHas('voucher', function ($q) use ($userId, $businessDate) {
+        if ($outletId) {
+            $salesQuery->where('sales.outlet_id', $outletId);
+        }
+
+        $expectedCashSales = (float) $salesQuery->sum('payments.paid_amount');
+
+        $expensesQuery = ExpenseVoucherItem::query()
+            ->whereHas('voucher', function ($q) use ($userId, $businessDate, $outletId) {
                 $q->where('created_by', $userId)
                     ->whereDate('voucher_date', $businessDate);
-            })
-            ->sum('amount');
+                if ($outletId) {
+                    $q->where('outlet_id', $outletId);
+                }
+            });
+
+        $expectedCashExpenses = (float) $expensesQuery->sum('amount');
 
         $expectedClosingCash = round($openingFloat + $expectedCashSales - $expectedCashExpenses, 2);
 

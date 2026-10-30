@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\BankAccount;
 use App\Models\ExpenseVoucherItem;
+use App\Models\Outlet;
 use App\Models\Payment;
 use App\Models\PaymentDetail;
 use App\Models\Product;
@@ -15,12 +16,12 @@ use App\Models\PurchasePaymentDetail;
 use App\Models\Sale;
 use App\Support\PaymentStatus;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    //
-     /**
+    /**
      * Create a new controller instance.
      *
      * @return void
@@ -28,7 +29,6 @@ class DashboardController extends Controller
     public function __construct()
     {
         $this->middleware('auth');
-        // $this->middleware('permission:dashboard-view');
     }
 
     /**
@@ -52,21 +52,47 @@ class DashboardController extends Controller
 
     private function buildDashboardData(): array
     {
-        $total_purchase = Purchase::get()->count(); 
-        $total_invoice = Sale::get()->count();
-        $pending_purchase = Purchase::get()->count();
-        $approved_purchase =Purchase::get()->count();
-        $total_sales = Payment::sum('total_amount');
-        $total_cash = (float) Payment::query()
+        $user = Auth::user();
+        $canFilterOutlets = $user && ($user->can('dashboard-outlet-filter') || $user->hasRole('Super Admin'));
+        $outlets = Outlet::where('is_active', true)->orderByDesc('is_central')->orderBy('name')->get();
+
+        if ($canFilterOutlets) {
+            $selectedOutletId = request()->filled('outlet_id') ? (int) request('outlet_id') : null;
+        } else {
+            $selectedOutletId = ($user && $user->outlet_id) ? (int) $user->outlet_id : null;
+        }
+
+        $selectedOutlet = $selectedOutletId ? $outlets->firstWhere('id', $selectedOutletId) : null;
+
+        $total_purchase = Purchase::count();
+        $pending_purchase = $total_purchase;
+        $approved_purchase = $total_purchase;
+
+        $saleQuery = Sale::query();
+        if ($selectedOutletId) {
+            $saleQuery->where('outlet_id', $selectedOutletId);
+        }
+        $total_invoice = (clone $saleQuery)->count();
+
+        $paymentQuery = Payment::query();
+        if ($selectedOutletId) {
+            $paymentQuery->whereHas('sale', function ($q) use ($selectedOutletId) {
+                $q->where('outlet_id', $selectedOutletId);
+            });
+        }
+
+        $total_sales = (float) (clone $paymentQuery)->sum('total_amount');
+        $total_cash = (float) (clone $paymentQuery)
             ->whereIn('paid_status', [PaymentStatus::FULL_PAYMENT, PaymentStatus::PARTIAL_PAYMENT])
             ->sum('paid_amount');
-        $total_credit_sales = (float) Payment::query()
+        $total_credit_sales = (float) (clone $paymentQuery)
             ->where('paid_status', PaymentStatus::FULL_CREDIT)
             ->sum('total_amount')
-            + (float) Payment::query()
+            + (float) (clone $paymentQuery)
                 ->where('paid_status', PaymentStatus::PARTIAL_PAYMENT)
                 ->sum('due_amount');
-        $total_purchases = PurchasePayment::sum('total_amount');
+
+        $total_purchases = (float) PurchasePayment::sum('total_amount');
         $total_purchase_cash = (float) PurchasePayment::query()
             ->whereIn('paid_status', [PaymentStatus::FULL_PAYMENT, PaymentStatus::PARTIAL_PAYMENT])
             ->sum('paid_amount');
@@ -76,24 +102,79 @@ class DashboardController extends Controller
             + (float) PurchasePayment::query()
                 ->where('paid_status', PaymentStatus::PARTIAL_PAYMENT)
                 ->sum('due_amount');
-        $total_stock_balance = (float) Product::sum('quantity');
-        $total_stock_value = (float) Product::selectRaw('COALESCE(SUM(quantity * cost_price), 0) as total')
+
+        // Multi-outlet stock balance and stock value via outlet_stocks
+        $stockBaseQuery = DB::table('outlet_stocks')
+            ->join('products', 'products.id', '=', 'outlet_stocks.product_id')
+            ->whereNull('products.deleted_at');
+
+        if ($selectedOutletId) {
+            $stockBaseQuery->where('outlet_stocks.outlet_id', $selectedOutletId);
+        }
+
+        $total_stock_balance = (float) (clone $stockBaseQuery)->sum('outlet_stocks.quantity');
+        $total_stock_value = (float) (clone $stockBaseQuery)
+            ->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.cost_price, 0)), 0) as total')
             ->value('total');
 
         // Dashboard finance snapshot metrics
         $cash_in_hand = $this->accountBalanceByCode('1000', 'asset');
         $cash_at_bank = (float) BankAccount::query()->sum('current_balance');
-        $total_expenses = (float) ExpenseVoucherItem::query()->sum('amount');
-        $debtors_balance = (float) Payment::query()->sum('due_amount');
+
+        $expenseQuery = ExpenseVoucherItem::query();
+        if ($selectedOutletId) {
+            $expenseQuery->whereHas('voucher', function ($q) use ($selectedOutletId) {
+                $q->where('outlet_id', $selectedOutletId);
+            });
+        }
+        $total_expenses = (float) $expenseQuery->sum('amount');
+
+        $debtors_balance = (float) (clone $paymentQuery)->sum('due_amount');
         $creditors_balance = (float) PurchasePayment::query()->sum('due_amount');
         $total_stocks_quantity = $total_stock_balance;
-       
-        $products = DB::select('SELECT * FROM products WHERE quantity < stock_level');
-        
+
+        // Re-stock alerts across outlets (or filtered outlet)
+        $restockQuery = DB::table('outlet_stocks')
+            ->join('products', 'products.id', '=', 'outlet_stocks.product_id')
+            ->join('outlets', 'outlets.id', '=', 'outlet_stocks.outlet_id')
+            ->whereNull('products.deleted_at')
+            ->where('outlets.is_active', true)
+            ->whereColumn('outlet_stocks.quantity', '<=', 'outlet_stocks.stock_level')
+            ->select(
+                'products.id',
+                'products.name',
+                'outlet_stocks.quantity',
+                'outlet_stocks.stock_level',
+                'outlets.id as outlet_id',
+                'outlets.name as outlet_name',
+                'outlets.code as outlet_code',
+                'outlets.is_central'
+            )
+            ->orderByDesc('outlets.is_central')
+            ->orderBy('outlets.name')
+            ->orderBy('products.name');
+
+        if ($selectedOutletId) {
+            $restockQuery->where('outlet_stocks.outlet_id', $selectedOutletId);
+        }
+
+        $products = $restockQuery->get();
+
+        // Multi-outlet active inter-branch transfers
+        $transferQuery = DB::table('stock_transfers');
+        if ($selectedOutletId) {
+            $transferQuery->where(function ($q) use ($selectedOutletId) {
+                $q->where('from_outlet_id', $selectedOutletId)
+                    ->orWhere('to_outlet_id', $selectedOutletId);
+            });
+        }
+        $pendingTransfersCount = (clone $transferQuery)->whereIn('status', ['pending', 'in_transit'])->count();
+
         // Hybrid trend for last 30 days (invoice value, cash collected, and credit due).
         $trendStart = Carbon::today()->subDays(29);
         $dailyInvoiceTotals = DB::table('sales')
             ->join('payments', 'sales.id', '=', 'payments.sale_id')
+            ->when($selectedOutletId, fn ($q) => $q->where('sales.outlet_id', $selectedOutletId))
             ->select(
                 DB::raw('DATE(sales.date) as sale_date'),
                 DB::raw('SUM(payments.total_amount) as total')
@@ -105,6 +186,9 @@ class DashboardController extends Controller
             ->toArray();
 
         $dailyCashCollected = PaymentDetail::query()
+            ->when($selectedOutletId, function ($q) use ($selectedOutletId) {
+                $q->whereHas('sale', fn ($sq) => $sq->where('outlet_id', $selectedOutletId));
+            })
             ->select(
                 DB::raw('DATE(payment_details.date) as paid_date'),
                 DB::raw('SUM(payment_details.current_paid_amount) as total')
@@ -117,6 +201,7 @@ class DashboardController extends Controller
 
         $dailyCreditDue = DB::table('sales')
             ->join('payments', 'sales.id', '=', 'payments.sale_id')
+            ->when($selectedOutletId, fn ($q) => $q->where('sales.outlet_id', $selectedOutletId))
             ->select(
                 DB::raw('DATE(sales.date) as sale_date'),
                 DB::raw('SUM(payments.due_amount) as total')
@@ -211,7 +296,9 @@ class DashboardController extends Controller
 
         // Top category contribution by sales amount.
         $topCategoryRows = DB::table('sale_details')
+            ->join('sales', 'sales.id', '=', 'sale_details.sale_id')
             ->join('categories', 'sale_details.category_id', '=', 'categories.id')
+            ->when($selectedOutletId, fn ($q) => $q->where('sales.outlet_id', $selectedOutletId))
             ->select(
                 'categories.name as category_name',
                 DB::raw('SUM(sale_details.selling_price) as total_sales')
@@ -229,10 +316,19 @@ class DashboardController extends Controller
             ->all();
 
         // Stock health risk: products below stock level ordered by shortfall.
-        $stockRiskRows = Product::query()
-            ->select('name', 'quantity', 'stock_level')
-            ->whereColumn('quantity', '<', 'stock_level')
-            ->orderByRaw('(stock_level - quantity) DESC')
+        $stockRiskRows = DB::table('outlet_stocks')
+            ->join('products', 'products.id', '=', 'outlet_stocks.product_id')
+            ->join('outlets', 'outlets.id', '=', 'outlet_stocks.outlet_id')
+            ->whereNull('products.deleted_at')
+            ->where('outlets.is_active', true)
+            ->when($selectedOutletId, fn ($q) => $q->where('outlet_stocks.outlet_id', $selectedOutletId))
+            ->select(
+                DB::raw("CONCAT(products.name, ' (', outlets.code, ')') as name"),
+                'outlet_stocks.quantity',
+                'outlet_stocks.stock_level'
+            )
+            ->whereColumn('outlet_stocks.quantity', '<', 'outlet_stocks.stock_level')
+            ->orderByRaw('(outlet_stocks.stock_level - outlet_stocks.quantity) DESC')
             ->limit(8)
             ->get();
 
@@ -247,6 +343,9 @@ class DashboardController extends Controller
         // Expense insight: spent amount grouped by expense category.
         $expenseInsightRows = ExpenseVoucherItem::query()
             ->join('expense_categories', 'expense_voucher_items.expense_category_id', '=', 'expense_categories.id')
+            ->when($selectedOutletId, function ($q) use ($selectedOutletId) {
+                $q->whereHas('voucher', fn ($vq) => $vq->where('outlet_id', $selectedOutletId));
+            })
             ->select(
                 'expense_categories.name as category_name',
                 DB::raw('SUM(expense_voucher_items.amount) as total_spent')
@@ -268,6 +367,7 @@ class DashboardController extends Controller
         $currentYear = Carbon::today()->year;
         $monthlyInvoiceRaw = DB::table('sales')
             ->join('payments', 'sales.id', '=', 'payments.sale_id')
+            ->when($selectedOutletId, fn ($q) => $q->where('sales.outlet_id', $selectedOutletId))
             ->select(
                 DB::raw('MONTH(sales.date) as sale_month'),
                 DB::raw('SUM(payments.total_amount) as total')
@@ -279,6 +379,9 @@ class DashboardController extends Controller
             ->toArray();
 
         $monthlyCashCollectedRaw = PaymentDetail::query()
+            ->when($selectedOutletId, function ($q) use ($selectedOutletId) {
+                $q->whereHas('sale', fn ($sq) => $sq->where('outlet_id', $selectedOutletId));
+            })
             ->select(
                 DB::raw('MONTH(payment_details.date) as paid_month'),
                 DB::raw('SUM(payment_details.current_paid_amount) as total')
@@ -291,6 +394,7 @@ class DashboardController extends Controller
 
         $monthlyCreditDueRaw = DB::table('sales')
             ->join('payments', 'sales.id', '=', 'payments.sale_id')
+            ->when($selectedOutletId, fn ($q) => $q->where('sales.outlet_id', $selectedOutletId))
             ->select(
                 DB::raw('MONTH(sales.date) as sale_month'),
                 DB::raw('SUM(payments.due_amount) as total')
@@ -357,6 +461,10 @@ class DashboardController extends Controller
 
         $company = Company::first();
         return compact(
+            'outlets',
+            'canFilterOutlets',
+            'selectedOutletId',
+            'selectedOutlet',
             'total_purchase',
             'total_invoice',
             'total_sales',
@@ -375,6 +483,7 @@ class DashboardController extends Controller
             'total_stocks_quantity',
             'pending_purchase',
             'products',
+            'pendingTransfersCount',
             'approved_purchase',
             'salesTrendLabels',
             'salesTrendInvoiceTotals',
@@ -425,6 +534,4 @@ class DashboardController extends Controller
 
         return round($credit - $debit, 2);
     }
-
-    
 }

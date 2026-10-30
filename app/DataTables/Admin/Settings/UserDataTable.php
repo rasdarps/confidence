@@ -26,9 +26,14 @@ class UserDataTable extends DataTable
                 return $row->getRoleNames()->implode(', ');
             })
             ->addColumn('outlet', function ($row) {
-                return $row->outlet
-                    ? '<span class="badge bg-info text-dark">' . e($row->outlet->name) . '</span>'
-                    : '<span class="badge bg-secondary">Central / HQ</span>';
+                if ($row->outlet) {
+                    return $row->outlet->is_central
+                        ? '<span class="badge bg-dark text-white"><i class="fas fa-crown me-1 mr-1"></i>' . e($row->outlet->name) . ' (HQ)</span>'
+                        : '<span class="badge bg-info text-dark">' . e($row->outlet->name) . '</span>';
+                }
+                return (strtolower((string) $row->user_type) === 'super admin' || $row->hasRole('Super Admin'))
+                    ? '<span class="badge bg-dark text-white"><i class="fas fa-crown me-1 mr-1"></i>Global Super Admin</span>'
+                    : '<span class="badge bg-warning text-dark">Unassigned</span>';
             })
             ->addColumn('edit_button', function ($row) {
                 $encryptedId = Crypt::encrypt($row->id);
@@ -43,28 +48,30 @@ class UserDataTable extends DataTable
 
                 if (Gate::allows('user-list')) {
                     $buttons[] = '
-                    <a href="'.$showUrl.'" class="btn btn-sm btn-info text-nowrap" style="display:inline-flex;align-items:center;gap:6px;width:auto;" title="View">
-                        <i class="fas fa-eye" style="color:#fff;"></i>
+                    <a href="'.$showUrl.'" class="btn-action-view" title="View User">
+                        <i class="fas fa-eye"></i>
                     </a>';
                 }
 
-                if (Gate::allows('user-edit')) {
+                $isCentral = auth()->check() && auth()->user()->isCentral();
+
+                if ($isCentral && Gate::allows('user-edit')) {
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="'.$editUrl.'" method="GET">
                         '.$csrf.'
-                        <button style="border:none; background:green; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="table-edit-btn btn btn-sm btn-success text-nowrap">
-                            <i class="fas fa-edit" style="color:#fff; justify-content:center;"></i>
+                        <button type="submit" class="btn-action-edit table-edit-btn" title="Edit User">
+                            <i class="fas fa-edit"></i>
                         </button>
                     </form>';
                 }
 
-                if (Gate::allows('user-delete')) {
+                if ($isCentral && Gate::allows('user-delete')) {
                     $buttons[] = '
                     <form class="d-inline-block m-0" action="'.$deleteUrl.'" method="POST">
                         '.$csrf.'
                         '.$method.'
-                        <button type="button" style="border:none; background:red; cursor:pointer; display:inline-flex; align-items:center; gap:6px; width:auto;" class="btn-delete delete-confirm-btn btn btn-sm btn-danger text-nowrap">
-                            <i class="fas fa-trash" style="color:#fff; justify-content:center;"></i>
+                        <button type="button" class="btn-action-delete delete-confirm-btn btn-delete" title="Delete User">
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </form>';
                 }

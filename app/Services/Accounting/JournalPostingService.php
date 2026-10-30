@@ -5,7 +5,13 @@ namespace App\Services\Accounting;
 use App\Models\AccountingFiscalPeriod;
 use App\Models\AccountingJournal;
 use App\Models\AccountingJournalLine;
+use App\Models\CashReconciliation;
+use App\Models\ExpenseVoucher;
+use App\Models\Outlet;
+use App\Models\Sale;
+use App\Models\StockAdjustment;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 class JournalPostingService
@@ -22,7 +28,8 @@ class JournalPostingService
         string $description,
         string $postingDate,
         array $lines,
-        ?int $postedBy = null
+        ?int $postedBy = null,
+        ?int $outletId = null
     ): AccountingJournal {
         if (empty($lines)) {
             throw new InvalidArgumentException('Journal lines are required.');
@@ -66,6 +73,8 @@ class JournalPostingService
             ->whereDate('end_date', '>=', $postingDate)
             ->value('id');
 
+        $resolvedOutletId = $outletId ?: $this->resolveOutletId($sourceType, $sourceId);
+
         return DB::transaction(function () use (
             $sourceType,
             $sourceId,
@@ -76,9 +85,10 @@ class JournalPostingService
             $totalDebit,
             $totalCredit,
             $postedBy,
-            $fiscalPeriodId
+            $fiscalPeriodId,
+            $resolvedOutletId
         ) {
-            $journal = AccountingJournal::create([
+            $payload = [
                 'journal_no' => $this->nextJournalNo($postingDate),
                 'posting_date' => $postingDate,
                 'source_type' => $sourceType,
@@ -91,7 +101,13 @@ class JournalPostingService
                 'fiscal_period_id' => $fiscalPeriodId,
                 'posted_by' => $postedBy,
                 'posted_at' => now(),
-            ]);
+            ];
+
+            if (Schema::hasColumn('accounting_journals', 'outlet_id')) {
+                $payload['outlet_id'] = $resolvedOutletId;
+            }
+
+            $journal = AccountingJournal::create($payload);
 
             foreach ($lines as $line) {
                 AccountingJournalLine::create([
@@ -107,6 +123,40 @@ class JournalPostingService
 
             return $journal;
         });
+    }
+
+    private function resolveOutletId(string $sourceType, ?int $sourceId): ?int
+    {
+        if ($sourceId && $sourceId > 0) {
+            if (in_array($sourceType, ['sale', 'sale_cancel', 'sale_receipt'], true)) {
+                $id = Sale::whereKey($sourceId)->value('outlet_id');
+                if ($id) {
+                    return (int) $id;
+                }
+            } elseif (in_array($sourceType, ['expense_voucher', 'expense_voucher_reversal'], true)) {
+                $id = ExpenseVoucher::whereKey($sourceId)->value('outlet_id');
+                if ($id) {
+                    return (int) $id;
+                }
+            } elseif (in_array($sourceType, ['stock_adjustment', 'stock_adjustment_reversal'], true)) {
+                $id = StockAdjustment::whereKey($sourceId)->value('outlet_id');
+                if ($id) {
+                    return (int) $id;
+                }
+            } elseif (in_array($sourceType, ['cash_reconciliation', 'cash_reconciliation_reversal'], true)) {
+                $id = CashReconciliation::whereKey($sourceId)->value('outlet_id');
+                if ($id) {
+                    return (int) $id;
+                }
+            }
+        }
+
+        if (auth()->check() && auth()->user()->outlet_id && !in_array($sourceType, ['purchase', 'purchase_cancel', 'purchase_settlement'], true)) {
+            return (int) auth()->user()->outlet_id;
+        }
+
+        $centralId = Outlet::where('is_central', true)->value('id');
+        return $centralId ? (int) $centralId : null;
     }
 
     private function nextJournalNo(string $postingDate): string

@@ -23,13 +23,20 @@
                     <div class="card-body">
 
                         @can('purchase-create')
-                            <a href="{{ route('purchases.create') }}" class="btn btn-dark btn-rounded waves-effect waves-light" style="float:right;">
-                                <i class="fas fa-plus-circle"></i> Add Purchase
-                            </a>
+                            @if(auth()->check() && auth()->user()->isCentral())
+                                <a href="{{ route('purchases.create') }}" class="btn btn-dark btn-rounded waves-effect waves-light" style="float:right;">
+                                    <i class="fas fa-plus-circle"></i> Add Purchase
+                                </a>
+                            @endif
                         @endcan
                         <br><br>               
 
                         <h4 class="card-title">Purchases Data</h4>
+
+                        <div class="alert alert-info py-2 mb-3" role="alert">
+                            <i class="fas fa-warehouse me-1" aria-hidden="true"></i>
+                            <strong>Central Procurement:</strong> All supplier purchases and inventory restocking flow directly into the Central Warehouse.
+                        </div>
 
                         <!-- 🔎 Filter boxes -->
                         <div class="row mb-3">

@@ -61,12 +61,19 @@
                 <div class="card">
                     <div class="card-header with-border d-flex align-items-center justify-content-between">
                         <span class="card-title" style="font-size:20px;">Create | Product</span>
-                        <a href="{{ route('products.index') }}">
-                            <button type="button" class="btn btn-primary modal_btn">View Products</button>
+                        <a href="{{ route('products.index') }}" class="btn btn-modern-header">
+                            <i class="fas fa-list me-1 mr-1"></i> View Products
                         </a>
                     </div>
                     
                     <div class="form-div card-body">
+                        <div class="alert alert-info d-flex align-items-center mb-3">
+                            <i class="fas fa-boxes fa-lg mr-2 me-2"></i>
+                            <div>
+                                <strong>Central Master Catalog:</strong> Products created here are registered globally across the enterprise. Initial stock is received through Central Purchases and distributed to retail outlets via Stock Transfers.
+                            </div>
+                        </div>
+
                         <form action="{{ route('products.store') }}" method="POST" id="myForm" enctype="multipart/form-data">
                             @csrf
                             <div class="alert alert-danger alert-dismissible fade show" id="errorAlert" style="display: none;">
@@ -131,10 +138,13 @@
                                 </div>
                             </div>
                             
-                            <div class="row mt-4">
+                            <div class="row mt-4 pt-3 border-top">
                                 <div class="col-12 text-center">
-                                    <button type="submit" class="btn btn-success mt-3">
-                                        <i class="fas fa-save"></i> Submit
+                                    <a href="{{ route('products.index') }}" class="btn btn-modern-cancel mr-2 me-2">
+                                        <i class="fas fa-times me-1 mr-1"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-modern-primary">
+                                        <i class="fas fa-check-circle me-1 mr-1"></i> Create Product
                                     </button>
                                 </div>
                             </div>
@@ -148,124 +158,164 @@
 @endsection
 
 @section('scripts')
-<script>
+<script type="text/javascript">
     $(document).ready(function() {
-        $.ajaxSetup({
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            }
-        });
+        if ($.fn.select2) {
+            $('.select2').select2({
+                width: '100%'
+            });
+        }
 
-        $("#myForm").on('submit', function(e) {
+        // Handle form submission
+        $('#myForm').on('submit', function(e) {
             e.preventDefault();
 
-            $('.error-text').html('');
-            $('.is-invalid').removeClass('is-invalid');
-
-            if (!validateProductForm()) {
+            // Client-side validations with Notiflix failure pop-ups for all inputs
+            var name = $('#name').val() ? $('#name').val().trim() : '';
+            if (!name) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Please enter a product name');
+                } else {
+                    alert('Please enter a product name');
+                }
+                $('#name').addClass('is-invalid').focus();
                 return;
             }
 
-            ajax(
-                $(this).attr('action'),
-                new FormData(this),
-                {
-                    element: 'form-div',
-                    showLoading: true,
-                    showGlobalError: true,
-                    scrollToError: true,
-                    success: function(response) {
-                        if (response.status === 'success' || response.status === 200) {
-                            $('#myForm')[0].reset();
-                            $('#category_id').val('').trigger('change');
-                            $('#unit_id').val('').trigger('change');
+            var categoryId = $('#category_id').val();
+            if (!categoryId) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Please select a category');
+                } else {
+                    alert('Please select a category');
+                }
+                if ($('#category_id').data('select2')) {
+                    $('#category_id').select2('open');
+                } else {
+                    $('#category_id').focus();
+                }
+                return;
+            }
 
+            var unitId = $('#unit_id').val();
+            if (!unitId) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Please select a unit');
+                } else {
+                    alert('Please select a unit');
+                }
+                if ($('#unit_id').data('select2')) {
+                    $('#unit_id').select2('open');
+                } else {
+                    $('#unit_id').focus();
+                }
+                return;
+            }
+
+            var stockLevel = $('#stock_level').val();
+            if (stockLevel === '' || isNaN(stockLevel) || parseFloat(stockLevel) < 0) {
+                if (typeof Notiflix !== 'undefined') {
+                    Notiflix.Notify.failure('Please enter a valid low stock threshold (0 or greater)');
+                } else {
+                    alert('Please enter a valid low stock threshold (0 or greater)');
+                }
+                $('#stock_level').addClass('is-invalid').focus();
+                return;
+            }
+
+            // Show loading
+            if (typeof Notiflix !== 'undefined') {
+                Notiflix.Loading.standard('Creating product, please wait...');
+            }
+
+            var $btn = $(this).find('button[type="submit"]');
+            $btn.prop('disabled', true);
+
+            $.ajax({
+                url: $(this).attr('action'),
+                type: $(this).attr('method'),
+                data: new FormData(this),
+                contentType: false,
+                processData: false,
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(response) {
+                    if (typeof Notiflix !== 'undefined') {
+                        Notiflix.Loading.remove();
+                    }
+                    $btn.prop('disabled', false);
+
+                    if (response.status === 'success' || response.status === 200) {
+                        if (typeof Notiflix !== 'undefined') {
                             Notiflix.Notify.success(response.message || 'Product created successfully!');
                         } else {
-                            Notiflix.Notify.warning(response.message || 'Failed to create product');
+                            alert(response.message || 'Product created successfully!');
                         }
-                    },
-                    error: function(xhr, status, error) {
-                        console.log('Product creation error:', error);
+
+                        $('#myForm')[0].reset();
+                        $('#category_id').val('').trigger('change');
+                        $('#unit_id').val('').trigger('change');
+                        $('#stock_level').val(1);
+                        $('.is-invalid').removeClass('is-invalid');
+                        $('#errorAlert').hide();
+                        $('#errors').empty();
+
+                        if (response.redirect) {
+                            setTimeout(function() {
+                                window.location.href = response.redirect;
+                            }, 1000);
+                        }
+                    } else {
+                        var warnMsg = response.message || 'Failed to create product';
+                        if (typeof Notiflix !== 'undefined') {
+                            Notiflix.Notify.failure(warnMsg);
+                        } else {
+                            alert('Error: ' + warnMsg);
+                        }
+                    }
+                },
+                error: function(xhr, status, error) {
+                    if (typeof Notiflix !== 'undefined') {
+                        Notiflix.Loading.remove();
+                    }
+                    $btn.prop('disabled', false);
+                    $('#errors').empty();
+
+                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        $('#errorAlert').show();
+                        $.each(xhr.responseJSON.errors, function(field, messages) {
+                            $('#errors').append('<li>' + messages[0] + '</li>');
+                            if (typeof Notiflix !== 'undefined') {
+                                Notiflix.Notify.failure(messages[0]);
+                            } else {
+                                alert('Validation Error: ' + messages[0]);
+                            }
+                            $('#' + field).addClass('is-invalid');
+                        });
+                        $('html, body').animate({
+                            scrollTop: $('#errorAlert').offset().top - 100
+                        }, 500);
+                    } else {
+                        var errMsg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : 'An error occurred. Please try again later.';
+                        $('#errorAlert').show();
+                        $('#errors').append('<li>' + errMsg + '</li>');
+                        if (typeof Notiflix !== 'undefined') {
+                            Notiflix.Notify.failure(errMsg);
+                        } else {
+                            alert(errMsg);
+                        }
                     }
                 }
-            );
+            });
         });
 
-        function validateProductForm() {
-            let isValid = true;
-
-            clearAllErrors({ errorSelector: '.error-text', inputErrorClass: 'is-invalid' });
-
-            const productName = $('input[name="name"]').val();
-            if (!productName || productName.trim() === '') {
-                showFieldError('name', 'Please enter a product name');
-                isValid = false;
-            }
-
-            const categoryId = $('#category_id').val();
-            if (!categoryId) {
-                showFieldError('category_id', 'Please select a category');
-                isValid = false;
-            }
-
-            const unitId = $('#unit_id').val();
-            if (!unitId) {
-                showFieldError('unit_id', 'Please select a unit');
-                isValid = false;
-            }
-
-            const lowStockThreshold = $('input[name="stock_level"]').val();
-            if (lowStockThreshold && lowStockThreshold < 0) {
-                showFieldError('stock_level', 'Low stock threshold cannot be negative');
-                isValid = false;
-            }
-
-            if (!isValid) {
-                Notiflix.Notify.warning('Please correct the errors before submitting');
-                scrollToFirstError('is-invalid');
-            }
-
-            return isValid;
-        }
-
-        function showFieldError(fieldName, errorMessage) {
-            const field = $('#' + fieldName + ', [name="' + fieldName + '"]').first();
-            field.addClass('is-invalid');
-
-            let errorElement = field.parent().find('.error-text');
-            if (errorElement.length === 0) {
-                errorElement = $('<small class="error-text text-danger"></small>');
-                field.after(errorElement);
-            }
-            errorElement.html(errorMessage);
-        }
-
-        function clearAllErrors(options) {
-            const defaults = {
-                errorSelector: '.error-text',
-                inputErrorClass: 'is-invalid'
-            };
-            const settings = {...defaults, ...options};
-
-            $(settings.errorSelector).html('');
-            $('.' + settings.inputErrorClass).removeClass(settings.inputErrorClass);
-        }
-
-        function scrollToFirstError(errorClass) {
-            const firstError = $('.' + errorClass).first();
-            if (firstError.length) {
-                $('html, body').animate({
-                    scrollTop: firstError.offset().top - 100
-                }, 500);
-                firstError.focus();
-            }
-        }
-
-        $('input, select, textarea').on('change blur', function() {
+        // Real-time error clearance on input
+        $('input, select').on('input change', function() {
             $(this).removeClass('is-invalid');
-            $(this).parent().find('.error-text').html('');
         });
     });
-    </script>
+</script>
 @endsection

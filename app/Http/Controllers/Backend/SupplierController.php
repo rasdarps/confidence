@@ -38,10 +38,23 @@ class SupplierController extends Controller
     } // End Method 
 
     public function create(){
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Supplier management is restricted to Central HQ.');
+        }
+
         return view('backend.supplier.create');
     } // End Method 
 
     public function store(Request $request){
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Supplier management is restricted to Central HQ.',
+            ], 403);
+        }
+
         $validatedData = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('suppliers', 'name')->whereNull('deleted_at')],
             'mobile_no' => ['required', 'string', 'max:15', Rule::unique('suppliers', 'mobile_no')->whereNull('deleted_at')],
@@ -105,6 +118,11 @@ class SupplierController extends Controller
     }
 
     public function edit($encryptedId){
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Supplier management is restricted to Central HQ.');
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $supplier = Supplier::find($id);
@@ -120,6 +138,14 @@ class SupplierController extends Controller
     }// End Method 
 
     public function update(Request $request, $encryptedId){ 
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Supplier management is restricted to Central HQ.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $supplier = Supplier::find($id);
@@ -129,6 +155,14 @@ class SupplierController extends Controller
                     'status' => 404,
                     'message' => 'Supplier not found.',
                 ]);
+            }
+
+            $isCashPurchase = (int) $supplier->id === 1 || strtolower((string) $supplier->name) === 'cash_purchase';
+            if ($isCashPurchase && strtolower(trim((string) $request->name)) !== 'cash_purchase') {
+                return response()->json([
+                    'status' => 422,
+                    'message' => 'The default system supplier name must remain "cash_purchase" to preserve cash purchase intake functionality.',
+                ], 422);
             }
 
             $validatedData = $request->validate([
@@ -184,6 +218,14 @@ class SupplierController extends Controller
     }// End Method 
 
     public function destroy($encryptedId){
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Supplier management is restricted to Central HQ.',
+            ], 403);
+        }
+
         try {
             $id = Crypt::decrypt($encryptedId);
             $supplier = Supplier::find($id);
@@ -192,6 +234,14 @@ class SupplierController extends Controller
                 $message = 'Supplier not found.';
                 if (request()->expectsJson() || request()->ajax()) {
                     return response()->json(['status' => 404, 'message' => $message], 404);
+                }
+                return redirect()->route('suppliers.index')->with(['message' => $message, 'alert-type' => 'error']);
+            }
+
+            if ((int) $supplier->id === 1 || strtolower((string) $supplier->name) === 'cash_purchase') {
+                $message = 'The system default cash purchase supplier cannot be deleted.';
+                if (request()->expectsJson() || request()->ajax()) {
+                    return response()->json(['status' => 422, 'message' => $message], 422);
                 }
                 return redirect()->route('suppliers.index')->with(['message' => $message, 'alert-type' => 'error']);
             }
@@ -255,6 +305,11 @@ class SupplierController extends Controller
 
     public function SupplierEditPurchase($purchase_id)
     {
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Supplier purchase settlements are managed at Central HQ only.');
+        }
+
         $payment = PurchasePayment::with(['supplier', 'purchase.purchase_details.product', 'purchase.purchase_details.category'])
             ->where('purchase_id', $purchase_id)
             ->firstOrFail();
@@ -264,6 +319,11 @@ class SupplierController extends Controller
 
     public function SupplierUpdatePurchase(Request $request, $purchase_id)
     {
+        $currentUser = auth()->user();
+        if ($currentUser && ! $currentUser->isCentral()) {
+            abort(403, 'Supplier purchase settlements are managed at Central HQ only.');
+        }
+
         $request->validate([
             'date' => ['required', 'date'],
             'paid_status' => ['required', Rule::in([

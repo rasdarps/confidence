@@ -35,7 +35,7 @@
     }
     .info-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 0.75rem;
     }
     .info-item {
@@ -133,7 +133,10 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div>
                         <h4 class="mb-1">Credit Purchase Settlement</h4>
-                        <p class="text-muted mb-0">Purchase No: {{ $payment->purchase->purchase_no ?? 'N/A' }}</p>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="text-muted">Purchase No: {{ $payment->purchase->purchase_no ?? 'N/A' }}</span>
+                            <span class="badge bg-primary">Central Warehouse</span>
+                        </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="settlement-chip">Outstanding Vendor Balance</span>
@@ -161,6 +164,10 @@
                         <div class="info-item">
                             <div class="info-label">Email</div>
                             <div class="info-value">{{ $payment->supplier->email ?? 'N/A' }}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Procurement Location</div>
+                            <div class="info-value"><span class="badge bg-primary">Central Warehouse</span></div>
                         </div>
                     </div>
                 </div>

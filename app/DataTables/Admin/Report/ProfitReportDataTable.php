@@ -24,6 +24,16 @@ class ProfitReportDataTable extends DataTable
         return (new EloquentDataTable($query))
             ->addColumn('action', 'profitreport.action')
 
+            ->addColumn('outlet_name', function ($row) {
+                $outlet = $row->outlet;
+                $name = $outlet->name ?? 'Central Warehouse';
+                $isCentral = (bool) ($outlet->is_central ?? false);
+                if ($isCentral) {
+                    return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($name) . ' <small>(Central)</small></span>';
+                }
+                return '<span class="badge bg-info-subtle text-info border border-info-subtle"><i class="ri-store-2-line me-1"></i>' . e($name) . '</span>';
+            })
+
             ->addColumn('customer_name', function($row) {
                 return $row->payment && $row->payment->customer
                     ? $row->payment->customer->name
@@ -80,23 +90,21 @@ class ProfitReportDataTable extends DataTable
                 return '<span class="badge bg-success">Active</span>';
             })
 
-             ->editColumn('date', function($row)
-            {
-                return  Carbon::parse($row->date)->format('d-m-Y');
+            ->editColumn('date', function($row) {
+                return Carbon::parse($row->date)->format('d-m-Y');
             })
 
-              ->editColumn('created_at', function($row)
-            {
-                return  Carbon::parse($row->created_at)->format('d-m-Y');
+            ->editColumn('created_at', function($row) {
+                return Carbon::parse($row->created_at)->format('d-m-Y');
             })
+
             ->editColumn('updated_at', function($row) {
                 return $row->updated_at
                     ? Carbon::parse($row->updated_at)->format('d-m-Y')
                     : '';
             })
 
-            
-            ->rawColumns(['sales_total','cost_total','profit_total','cancelled_status'])
+            ->rawColumns(['outlet_name', 'sales_total', 'cost_total', 'profit_total', 'cancelled_status'])
             ->setRowId('id');
     }
 
@@ -134,10 +142,18 @@ class ProfitReportDataTable extends DataTable
                 DB::raw('COALESCE(costs_agg.cost_total, 0) as cost_total'),
                 DB::raw('(COALESCE(sales_agg.sales_total, 0) - COALESCE(costs_agg.cost_total, 0)) as profit_total')
             )
-            ->with(['payment.customer', 'createdBy', 'cancelledBy'])
+            ->with(['outlet', 'payment.customer', 'createdBy', 'cancelledBy'])
             ->orderBy('sales.date', 'desc');
 
-            // Apply filters
+        $outletId = (auth()->check() && auth()->user()->outlet_id)
+            ? (int) auth()->user()->outlet_id
+            : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
+
+        if ($outletId) {
+            $query->where('sales.outlet_id', $outletId);
+        }
+
+        // Apply filters
         if ($invoiceId = $this->request()->get('sale_id')) {
             $query->where('sales.id', $invoiceId);
         }
@@ -172,7 +188,6 @@ class ProfitReportDataTable extends DataTable
                     ->setTableId('profitreport-table')
                     ->columns($this->getColumns())
                     ->minifiedAjax(request()->getRequestUri())
-                    //->dom('Bfrtip')
                     ->orderBy(1)
                     ->selectStyleSingle()
                     ->footerCallback('function (row, data, start, end, display) {
@@ -228,7 +243,7 @@ class ProfitReportDataTable extends DataTable
                         $(api.column(profitColIndex).footer()).html(formatValue(totalProfit));
                     }')
                     ->parameters([
-                        'dom'          => "<'row'l>Bfrtip",  //row counter button
+                        'dom'          => "<'row'l>Bfrtip",
                         'buttons'      => [
                             'colvis',
                             ['extend' => 'excel', 'footer' => true],
@@ -245,8 +260,9 @@ class ProfitReportDataTable extends DataTable
     public function getColumns(): array
     {
         $columns = [
-            Column::make('date'),
-            Column::make('sale_no'),
+            Column::make('date')->title('Date'),
+            Column::make('sale_no')->title('Sale No'),
+            Column::computed('outlet_name')->title('Outlet / Branch')->searchable(false)->orderable(false),
             Column::make('customer_name')->title('Customer Name'),
             Column::make('sales_total')->title('Net Sales (Gh¢)'),
             Column::make('cost_total')->title('Cost (Gh¢)'),
@@ -272,4 +288,3 @@ class ProfitReportDataTable extends DataTable
         return 'ProfitReport_' . date('YmdHis');
     }
 }
-

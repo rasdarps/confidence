@@ -58,7 +58,7 @@
     function renderAnswer(answer) {
         const article = element('article', undefined, 'chat-message chat-message-answer');
         article.append(element('h5', answer.title), element('div', answer.period, 'chat-period'));
-        const filters = Object.entries(answer.filters || {}).filter(([, value]) => value).map(([key, value]) => `${key.replace(/_/g, ' ')}: ${value}`);
+        const filters = Object.entries(answer.filters || {}).filter(([, value]) => value).map(([key, value]) => `${key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}: ${value}`);
         if (filters.length) article.append(element('div', filters.join(' | '), 'chat-filters'));
         article.append(metricList(answer.metrics));
         if (answer.rows.length) {
@@ -112,7 +112,7 @@
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                body: JSON.stringify({ message: question, conversation_id: root.dataset.conversation, reset })
+                body: JSON.stringify({ message: question, conversation_id: root.dataset.conversation, reset, outlet_id: root.dataset.outletId ? parseInt(root.dataset.outletId, 10) : null })
             });
             if (!response.ok) {
                 const errors = {

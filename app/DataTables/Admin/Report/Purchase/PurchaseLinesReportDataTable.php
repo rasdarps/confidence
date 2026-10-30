@@ -2,6 +2,7 @@
 
 namespace App\DataTables\Admin\Report\Purchase;
 
+use App\Models\Outlet;
 use App\Models\PurchaseDetail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
@@ -14,9 +15,14 @@ class PurchaseLinesReportDataTable extends DataTable
 {
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
+        $centralName = Outlet::where('is_central', true)->value('name') ?? 'Central Warehouse';
+
         return (new EloquentDataTable($query))
             ->editColumn('purchase_date', function ($row) {
                 return $row->purchase_date ? Carbon::parse($row->purchase_date)->format('d-m-Y') : 'N/A';
+            })
+            ->addColumn('receiving_location', function () use ($centralName) {
+                return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($centralName) . ' <small>(Central)</small></span>';
             })
             ->editColumn('buying_qty', function ($row) {
                 return number_format((float) $row->buying_qty, 2);
@@ -27,6 +33,7 @@ class PurchaseLinesReportDataTable extends DataTable
             ->editColumn('buying_price', function ($row) {
                 return number_format((float) $row->buying_price, 2);
             })
+            ->rawColumns(['receiving_location'])
             ->setRowId('id');
     }
 
@@ -143,6 +150,7 @@ class PurchaseLinesReportDataTable extends DataTable
         return [
             Column::make('purchase_date')->title('Date'),
             Column::make('purchase_no')->title('Purchase No'),
+            Column::computed('receiving_location')->title('Receiving Location')->searchable(false)->orderable(false),
             Column::make('supplier_name')->title('Supplier'),
             Column::make('category_name')->title('Category'),
             Column::make('product_name')->title('Product'),

@@ -225,6 +225,236 @@
                 border-color: #0C5F58 !important;
             }
 
+            /* Modern DataTables Action Buttons (View, Edit, Delete) */
+            .action-buttons {
+                display: inline-flex !important;
+                align-items: center !important;
+                flex-wrap: nowrap !important;
+                gap: 6px !important;
+            }
+
+            .btn-action-view,
+            .btn-action-edit,
+            .btn-action-delete,
+            .btn-action-amber,
+            .table-edit-btn,
+            .delete-confirm-btn {
+                width: 32px !important;
+                min-width: 32px !important;
+                height: 32px !important;
+                padding: 0 !important;
+                border-radius: 8px !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 13px !important;
+                cursor: pointer !important;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                text-decoration: none !important;
+                line-height: 1 !important;
+                border: 1px solid transparent !important;
+                box-sizing: border-box !important;
+            }
+
+            /* View: Modern Sky Tint */
+            .btn-action-view {
+                background: #f0f9ff !important;
+                color: #0284c7 !important;
+                border-color: #bae6fd !important;
+                box-shadow: 0 1px 2px rgba(2, 132, 199, 0.08) !important;
+            }
+
+            .btn-action-view:hover {
+                background: #0284c7 !important;
+                color: #ffffff !important;
+                border-color: #0284c7 !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+            }
+
+            .btn-action-view i,
+            .btn-action-view svg {
+                color: #0284c7 !important;
+                font-size: 13px !important;
+                transition: color 0.15s ease !important;
+            }
+
+            .btn-action-view:hover i,
+            .btn-action-view:hover svg {
+                color: #ffffff !important;
+            }
+
+            /* Edit: Modern Signature Teal Tint */
+            .btn-action-edit,
+            .table-edit-btn {
+                background: #f0fdfa !important;
+                color: #0F766E !important;
+                border-color: #99f6e4 !important;
+                box-shadow: 0 1px 2px rgba(15, 118, 110, 0.08) !important;
+            }
+
+            .btn-action-edit:hover,
+            .table-edit-btn:hover {
+                background: #0F766E !important;
+                color: #ffffff !important;
+                border-color: #0F766E !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3) !important;
+            }
+
+            .btn-action-edit i,
+            .table-edit-btn i,
+            .btn-action-edit svg,
+            .table-edit-btn svg {
+                color: #0F766E !important;
+                font-size: 13px !important;
+                transition: color 0.15s ease !important;
+            }
+
+            .btn-action-edit:hover i,
+            .table-edit-btn:hover i,
+            .btn-action-edit:hover svg,
+            .table-edit-btn:hover svg {
+                color: #ffffff !important;
+            }
+
+            /* Delete: Modern Rose Tint */
+            .btn-action-delete,
+            .delete-confirm-btn {
+                background: #fff1f2 !important;
+                color: #e11d48 !important;
+                border-color: #fecdd3 !important;
+                box-shadow: 0 1px 2px rgba(225, 29, 72, 0.08) !important;
+            }
+
+            .btn-action-delete:hover,
+            .delete-confirm-btn:hover {
+                background: #e11d48 !important;
+                color: #ffffff !important;
+                border-color: #e11d48 !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3) !important;
+            }
+
+            .btn-action-delete i,
+            .delete-confirm-btn i,
+            .btn-action-delete svg,
+            .delete-confirm-btn svg {
+                color: #e11d48 !important;
+                font-size: 13px !important;
+                transition: color 0.15s ease !important;
+            }
+
+            .btn-action-delete:hover i,
+            .delete-confirm-btn:hover i,
+            .btn-action-delete:hover svg,
+            .delete-confirm-btn:hover svg {
+                color: #ffffff !important;
+            }
+
+            /* Amber / Warning Action Button (e.g. Reopen, Restore) */
+            .btn-action-amber {
+                background: #fffbeb !important;
+                color: #d97706 !important;
+                border-color: #fde68a !important;
+                box-shadow: 0 1px 2px rgba(217, 119, 6, 0.08) !important;
+            }
+
+            .btn-action-amber:hover {
+                background: #d97706 !important;
+                color: #ffffff !important;
+                border-color: #d97706 !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3) !important;
+            }
+
+            .btn-action-amber i,
+            .btn-action-amber svg {
+                color: #d97706 !important;
+                font-size: 13px !important;
+                transition: color 0.15s ease !important;
+            }
+
+            .btn-action-amber:hover i,
+            .btn-action-amber:hover svg {
+                color: #ffffff !important;
+            }
+
+            /* Modern UI Page Buttons */
+            .btn-modern-primary {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                background: linear-gradient(135deg, #0F766E 0%, #0d9488 100%) !important;
+                color: #ffffff !important;
+                border: none !important;
+                font-weight: 600 !important;
+                font-size: 14px !important;
+                border-radius: 10px !important;
+                padding: 9px 24px !important;
+                letter-spacing: 0.2px !important;
+                box-shadow: 0 4px 14px rgba(15, 118, 110, 0.35) !important;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                text-decoration: none !important;
+            }
+
+            .btn-modern-primary:hover {
+                background: linear-gradient(135deg, #115e59 0%, #0F766E 100%) !important;
+                color: #ffffff !important;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 6px 20px rgba(15, 118, 110, 0.45) !important;
+            }
+
+            .btn-modern-cancel {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                background: #ffffff !important;
+                color: #475569 !important;
+                border: 1.5px solid #cbd5e1 !important;
+                font-weight: 600 !important;
+                font-size: 14px !important;
+                border-radius: 10px !important;
+                padding: 9px 24px !important;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                text-decoration: none !important;
+            }
+
+            .btn-modern-cancel:hover {
+                background: #f8fafc !important;
+                color: #1e293b !important;
+                border-color: #94a3b8 !important;
+                transform: translateY(-1px) !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+            }
+
+            .btn-modern-header {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                background: #ffffff !important;
+                color: #0F766E !important;
+                border: 1.5px solid #cbd5e1 !important;
+                font-weight: 600 !important;
+                font-size: 13.5px !important;
+                border-radius: 8px !important;
+                padding: 8px 18px !important;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+                text-decoration: none !important;
+            }
+
+            .btn-modern-header:hover {
+                background: #f0fdfa !important;
+                color: #0F766E !important;
+                border-color: #0F766E !important;
+                transform: translateY(-1px) !important;
+                box-shadow: 0 4px 12px rgba(15, 118, 110, 0.15) !important;
+            }
+
             .header-quick-actions {
                 position: absolute;
                 top: 50%;

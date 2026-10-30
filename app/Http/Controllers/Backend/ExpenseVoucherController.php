@@ -6,6 +6,7 @@ use App\DataTables\Admin\Settings\ExpenseVoucherDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseCategory;
 use App\Models\ExpenseVoucher;
+use App\Models\Outlet;
 use App\Models\ExpenseVoucherItem;
 use App\Services\Accounting\AccountingIntegrationService;
 use Illuminate\Http\Request;
@@ -26,20 +27,38 @@ class ExpenseVoucherController extends Controller
 
     public function index(ExpenseVoucherDataTable $dataTable)
     {
-        return $dataTable->render('backend.expense_voucher.index');
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+        $isRestrictedToOwnOutlet = auth()->check() && (bool) auth()->user()->assignedOutletId();
+
+        return $dataTable->render('backend.expense_voucher.index', compact('outlets', 'isRestrictedToOwnOutlet'));
     }
 
     public function create()
     {
+        $currentUser = auth()->user();
+        $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+        $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+
+        if ($assignedOutletId) {
+            $currentOutletId = $assignedOutletId;
+            $canChangeOutlet = false;
+        } else {
+            $firstCentral = $outlets->firstWhere('is_central', true);
+            $currentOutletId = $firstCentral ? $firstCentral->id : ($outlets->first()?->id ?? 1);
+            $canChangeOutlet = true;
+        }
+
+        $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
         $expenseCategories = ExpenseCategory::orderBy('name')->get();
-        return view('backend.expense_voucher.create', compact('expenseCategories'));
+
+        return view('backend.expense_voucher.create', compact('expenseCategories', 'outlets', 'currentOutletId', 'currentOutlet', 'canChangeOutlet'));
     }
 
     public function show($encryptedId)
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $voucher = ExpenseVoucher::with(['items.category', 'createdBy'])->find($id);
+            $voucher = ExpenseVoucher::with(['items.category', 'createdBy', 'outlet'])->find($id);
 
             if (! $voucher) {
                 return redirect()->route('expense-vouchers.index')->with('error', 'Expense voucher not found.');
@@ -55,7 +74,7 @@ class ExpenseVoucherController extends Controller
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $voucher = ExpenseVoucher::with(['items.category', 'createdBy'])->find($id);
+            $voucher = ExpenseVoucher::with(['items.category', 'createdBy', 'outlet'])->find($id);
 
             if (! $voucher) {
                 return redirect()->route('expense-vouchers.index')->with('error', 'Expense voucher not found.');
@@ -71,6 +90,7 @@ class ExpenseVoucherController extends Controller
     {
         $validatedData = $request->validate([
             'voucher_date' => 'required|date',
+            'outlet_id' => ['nullable', 'exists:outlets,id'],
             'reference_no' => [
                 'nullable',
                 'string',
@@ -100,7 +120,16 @@ class ExpenseVoucherController extends Controller
             DB::transaction(function () use ($validatedData) {
                 $lineTotal = collect($validatedData['amount'])->map(fn ($v) => (float) $v)->sum();
 
-                $outletId = Auth::user()->outlet_id ?? \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
+                $user = Auth::user();
+                $assignedOutletId = $user ? $user->assignedOutletId() : null;
+                if ($assignedOutletId) {
+                    $outletId = $assignedOutletId;
+                } else {
+                    $outletId = (int) $request->input('outlet_id');
+                    if (!$outletId || !Outlet::where('id', $outletId)->exists()) {
+                        $outletId = Outlet::where('is_active', true)->where('is_central', true)->value('id') ?? (Outlet::where('is_active', true)->value('id') ?? 1);
+                    }
+                }
                 $voucher = ExpenseVoucher::create([
                     'outlet_id' => $outletId,
                     'voucher_date' => $validatedData['voucher_date'],
@@ -140,14 +169,21 @@ class ExpenseVoucherController extends Controller
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $voucher = ExpenseVoucher::with('items')->find($id);
+            $voucher = ExpenseVoucher::with(['items', 'outlet'])->find($id);
 
             if (! $voucher) {
                 return redirect()->route('expense-vouchers.index')->with('error', 'Expense voucher not found.');
             }
 
+            $currentUser = auth()->user();
+            $assignedOutletId = $currentUser ? $currentUser->assignedOutletId() : null;
+            $outlets = Outlet::where('is_active', true)->orderBy('is_central', 'desc')->orderBy('name')->get();
+            $canChangeOutlet = ! $assignedOutletId;
+            $currentOutletId = $voucher->outlet_id ?: ($assignedOutletId ?: $outlets->first()?->id);
+            $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
+
             $expenseCategories = ExpenseCategory::orderBy('name')->get();
-            return view('backend.expense_voucher.edit', compact('voucher', 'expenseCategories'));
+            return view('backend.expense_voucher.edit', compact('voucher', 'expenseCategories', 'outlets', 'currentOutletId', 'currentOutlet', 'canChangeOutlet'));
         } catch (\Exception $e) {
             return redirect()->route('expense-vouchers.index')->with('error', 'Invalid voucher ID.');
         }
@@ -168,6 +204,8 @@ class ExpenseVoucherController extends Controller
 
             $validatedData = $request->validate([
                 'voucher_date' => 'required|date',
+                'outlet_id' => ['nullable', 'exists:outlets,id'],
+            'outlet_id' => ['nullable', 'exists:outlets,id'],
                 'reference_no' => [
                     'nullable',
                     'string',
@@ -195,7 +233,12 @@ class ExpenseVoucherController extends Controller
 
                 $lineTotal = collect($validatedData['amount'])->map(fn ($v) => (float) $v)->sum();
 
+                $user = Auth::user();
+                $assignedOutletId = $user ? $user->assignedOutletId() : null;
+                $newOutletId = $assignedOutletId ?: ((int) $request->input('outlet_id') ?: $voucher->outlet_id);
+
                 $voucher->update([
+                    'outlet_id' => $newOutletId,
                     'voucher_date' => $validatedData['voucher_date'],
                     'reference_no' => $validatedData['reference_no'] ?? null,
                     'total_amount' => $lineTotal,

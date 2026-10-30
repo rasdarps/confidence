@@ -6,14 +6,17 @@ use App\DataTables\Admin\Accounting\BankAccountsDataTable;
 use App\DataTables\Admin\Accounting\BankTransactionsDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\AccountingAccount;
+use App\Models\AccountingJournal;
 use App\Models\BankAccount;
 use App\Models\BankTransaction;
+use App\Models\Outlet;
 use App\Models\PurchasePayment;
 use App\Models\PurchasePaymentDetail;
-use App\Support\PaymentStatus;
 use App\Services\Accounting\JournalPostingService;
+use App\Support\PaymentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class BankingController extends Controller
@@ -51,16 +54,47 @@ class BankingController extends Controller
 
         $opening = round((float) $data['opening_balance'], 2);
 
-        BankAccount::create([
-            'name' => $data['name'],
-            'bank_name' => $data['bank_name'] ?? null,
-            'account_number' => $data['account_number'] ?? null,
-            'currency' => $data['currency'] ?? 'GHS',
-            'opening_balance' => $opening,
-            'current_balance' => $opening,
-            'gl_account_id' => (int) $data['gl_account_id'],
-            'is_active' => (bool) ($data['is_active'] ?? true),
-        ]);
+        DB::transaction(function () use ($data, $opening) {
+            $account = BankAccount::create([
+                'name' => $data['name'],
+                'bank_name' => $data['bank_name'] ?? null,
+                'account_number' => $data['account_number'] ?? null,
+                'currency' => $data['currency'] ?? 'GHS',
+                'opening_balance' => $opening,
+                'current_balance' => $opening,
+                'gl_account_id' => (int) $data['gl_account_id'],
+                'is_active' => (bool) ($data['is_active'] ?? true),
+            ]);
+
+            if ($opening > 0 && $account->gl_account_id) {
+                $equityAccountId = $this->accountIdByCode('3000');
+                $centralOutletId = Outlet::centralWarehouseId();
+
+                $this->journalPostingService->postJournal(
+                    sourceType: 'bank_opening_balance',
+                    sourceId: (int) $account->id,
+                    referenceNo: 'BANK-OPEN-' . $account->id,
+                    description: 'Opening balance for bank account: ' . $account->name,
+                    postingDate: now()->toDateString(),
+                    lines: [
+                        [
+                            'account_id' => (int) $account->gl_account_id,
+                            'debit' => $opening,
+                            'credit' => 0,
+                            'description' => 'Bank opening balance (' . $account->name . ')',
+                        ],
+                        [
+                            'account_id' => $equityAccountId,
+                            'debit' => 0,
+                            'credit' => $opening,
+                            'description' => 'Opening bank balance equity offset',
+                        ],
+                    ],
+                    postedBy: auth()->id(),
+                    outletId: $centralOutletId
+                );
+            }
+        });
 
         return redirect()->route('accounting.setup.bank-accounts.index')->with([
             'message' => 'Bank account created successfully.',
@@ -118,7 +152,16 @@ class BankingController extends Controller
             throw ValidationException::withMessages(['bank_account_id' => $message]);
         }
 
-        $account->delete();
+        DB::transaction(function () use ($account) {
+            $openingJournalIds = DB::table('accounting_journals')
+                ->where('source_type', 'bank_opening_balance')
+                ->where('source_id', (int) $account->id)
+                ->pluck('id')
+                ->all();
+
+            $this->deleteJournals($openingJournalIds);
+            $account->delete();
+        });
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Bank account deleted successfully.']);
@@ -133,14 +176,32 @@ class BankingController extends Controller
     public function bankTransactionsIndex(BankTransactionsDataTable $dataTable)
     {
         $bankAccounts = BankAccount::query()->where('is_active', true)->orderBy('name')->get();
+        $outlets = Outlet::active()
+            ->orderByDesc('is_central')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'type', 'is_central']);
+
+        $cashInHandByOutlet = $this->cashInHandBalancesMap($outlets->pluck('id')->all());
+        $defaultOutletId = 0;
+
         $supplierPayments = PurchasePayment::query()
-            ->with(['supplier:id,name', 'purchase:id,purchase_no'])
+            ->with(['supplier:id,name', 'purchase:id,purchase_no,outlet_id'])
             ->where('due_amount', '>', 0)
             ->orderByDesc('id')
             ->get();
-        $cashInHandBalance = $this->cashInHandBalance();
 
-        return $dataTable->render('backend.accounting.bank_transactions', compact('bankAccounts', 'supplierPayments', 'cashInHandBalance'));
+        $cashInHandBalance = 0.0;
+        $consolidatedCashInHandBalance = $cashInHandByOutlet['all'] ?? $this->cashInHandBalance(null);
+
+        return $dataTable->render('backend.accounting.bank_transactions', compact(
+            'bankAccounts',
+            'supplierPayments',
+            'outlets',
+            'defaultOutletId',
+            'cashInHandBalance',
+            'consolidatedCashInHandBalance',
+            'cashInHandByOutlet'
+        ));
     }
 
     public function bankTransactionStore(Request $request)
@@ -149,9 +210,15 @@ class BankingController extends Controller
         DB::transaction(fn () => $this->postBankTransaction($data));
 
         if ($request->expectsJson()) {
+            $outletIds = Outlet::active()->pluck('id')->all();
+            $cashMap = $this->cashInHandBalancesMap($outletIds);
+            $selectedOutletId = !empty($data['outlet_id']) ? (int) $data['outlet_id'] : (int) (auth()->user()?->outlet_id ?: Outlet::centralWarehouseId());
+
             return response()->json([
                 'message' => 'Bank transaction posted successfully.',
-                'cash_in_hand_balance' => $this->cashInHandBalance(),
+                'cash_in_hand_balance' => $cashMap[(string) $selectedOutletId] ?? ($cashMap['all'] ?? 0),
+                'consolidated_cash_in_hand_balance' => $cashMap['all'] ?? 0,
+                'cash_in_hand_by_outlet' => $cashMap,
             ]);
         }
 
@@ -199,9 +266,15 @@ class BankingController extends Controller
         });
 
         if ($request->expectsJson()) {
+            $outletIds = Outlet::active()->pluck('id')->all();
+            $cashMap = $this->cashInHandBalancesMap($outletIds);
+            $selectedOutletId = !empty($data['outlet_id']) ? (int) $data['outlet_id'] : (int) (auth()->user()?->outlet_id ?: Outlet::centralWarehouseId());
+
             return response()->json([
                 'message' => 'Bank transaction updated successfully.',
-                'cash_in_hand_balance' => $this->cashInHandBalance(),
+                'cash_in_hand_balance' => $cashMap[(string) $selectedOutletId] ?? ($cashMap['all'] ?? 0),
+                'consolidated_cash_in_hand_balance' => $cashMap['all'] ?? 0,
+                'cash_in_hand_by_outlet' => $cashMap,
             ]);
         }
 
@@ -241,11 +314,17 @@ class BankingController extends Controller
         });
 
         if ($request->expectsJson()) {
+            $outletIds = Outlet::active()->pluck('id')->all();
+            $cashMap = $this->cashInHandBalancesMap($outletIds);
+            $defaultOutletId = (int) (auth()->user()?->outlet_id ?: Outlet::centralWarehouseId());
+
             return response()->json([
                 'message' => $deletedType === 'deposit'
                     ? 'Bank deposit deleted and amount reversed to Cash In Hand.'
                     : 'Bank transaction deleted successfully.',
-                'cash_in_hand_balance' => $this->cashInHandBalance(),
+                'cash_in_hand_balance' => $cashMap[(string) $defaultOutletId] ?? ($cashMap['all'] ?? 0),
+                'consolidated_cash_in_hand_balance' => $cashMap['all'] ?? 0,
+                'cash_in_hand_by_outlet' => $cashMap,
             ]);
         }
 
@@ -350,6 +429,7 @@ class BankingController extends Controller
     {
         $data = $request->validate([
             'bank_account_id' => ['required', 'exists:bank_accounts,id'],
+            'outlet_id' => ['required', 'exists:outlets,id'],
             'transaction_date' => ['required', 'date'],
             'type' => ['required', 'in:deposit,withdrawal,transfer_out,bank_fee,interest_income,receipt,payment,reconciliation_adjustment'],
             'amount' => ['required', 'numeric', 'min:0.01'],
@@ -395,7 +475,7 @@ class BankingController extends Controller
 
         if ((string) $data['type'] === 'payment' && !empty($data['purchase_payment_id'])) {
             $linkedPurchasePayment = PurchasePayment::query()
-                ->with('purchase:id,purchase_no')
+                ->with('purchase:id,purchase_no,outlet_id')
                 ->lockForUpdate()
                 ->findOrFail((int) $data['purchase_payment_id']);
 
@@ -422,6 +502,29 @@ class BankingController extends Controller
             }
         }
 
+        $resolvedOutletId = !empty($data['outlet_id'])
+            ? (int) $data['outlet_id']
+            : ((int) (optional($linkedPurchasePayment?->purchase)->outlet_id ?? 0)
+                ?: (int) (auth()->user()?->outlet_id ?: Outlet::centralWarehouseId()));
+
+        if ((string) $data['type'] === 'deposit') {
+            $availableCash = $this->cashInHandBalance($resolvedOutletId > 0 ? $resolvedOutletId : null);
+            if ($amount > $availableCash) {
+                $outletName = $resolvedOutletId > 0
+                    ? (Outlet::query()->whereKey($resolvedOutletId)->value('name') ?: 'Selected outlet')
+                    : 'Selected outlet';
+
+                throw ValidationException::withMessages([
+                    'amount' => sprintf(
+                        'Insufficient Cash on Hand (GL 1000) at %s. Available: %s, Deposit requested: %s.',
+                        $outletName,
+                        number_format($availableCash, 2),
+                        number_format($amount, 2)
+                    ),
+                ]);
+            }
+        }
+
         [$lines, $balanceDelta, $counterpartyDelta] = $this->buildJournalLinesForType(
             $data['type'],
             $bankAccount,
@@ -437,7 +540,8 @@ class BankingController extends Controller
             description: (string) ($data['description'] ?? ('Bank transaction: ' . $data['type'])),
             postingDate: (string) $data['transaction_date'],
             lines: $lines,
-            postedBy: auth()->id()
+            postedBy: auth()->id(),
+            outletId: $resolvedOutletId > 0 ? $resolvedOutletId : null
         );
 
         $txn = BankTransaction::create([
@@ -504,7 +608,23 @@ class BankingController extends Controller
         }
     }
 
-    private function cashInHandBalance(): float
+    private function cashInHandBalancesMap(array $outletIds = []): array
+    {
+        $map = [
+            'all' => $this->cashInHandBalance(null),
+        ];
+
+        foreach ($outletIds as $outletId) {
+            $id = (int) $outletId;
+            if ($id > 0) {
+                $map[(string) $id] = $this->cashInHandBalance($id);
+            }
+        }
+
+        return $map;
+    }
+
+    private function cashInHandBalance(?int $outletId = null): float
     {
         $cashAccountId = AccountingAccount::query()->where('code', '1000')->value('id');
 
@@ -512,10 +632,32 @@ class BankingController extends Controller
             return 0.0;
         }
 
-        $row = DB::table('accounting_journal_lines as l')
+        $query = DB::table('accounting_journal_lines as l')
             ->join('accounting_journals as j', 'j.id', '=', 'l.journal_id')
             ->where('l.account_id', (int) $cashAccountId)
-            ->where('j.status', 'posted')
+            ->where('j.status', 'posted');
+
+        if (!is_null($outletId) && $outletId > 0) {
+            AccountingJournal::applyOutletFilter($query, $outletId, 'j');
+        }
+
+        if (Schema::hasTable('sales') && Schema::hasColumn('sales', 'cancel_status')) {
+            $query->whereRaw("NOT (j.source_type IN ('sale', 'sale_cogs') AND EXISTS (SELECT 1 FROM sales s WHERE s.id = j.source_id AND s.cancel_status = 1))");
+
+            if (Schema::hasTable('payment_details')) {
+                $query->whereRaw("NOT (j.source_type = 'customer_receipt' AND EXISTS (SELECT 1 FROM payment_details pd INNER JOIN sales s ON s.id = pd.sale_id WHERE pd.id = j.source_id AND s.cancel_status = 1))");
+            }
+        }
+
+        if (Schema::hasTable('purchases') && Schema::hasColumn('purchases', 'cancel_status')) {
+            $query->whereRaw("NOT (j.source_type = 'purchase' AND EXISTS (SELECT 1 FROM purchases p WHERE p.id = j.source_id AND p.cancel_status = 1))");
+
+            if (Schema::hasTable('purchase_payment_details')) {
+                $query->whereRaw("NOT (j.source_type = 'supplier_payment' AND EXISTS (SELECT 1 FROM purchase_payment_details ppd INNER JOIN purchases p ON p.id = ppd.purchase_id WHERE ppd.id = j.source_id AND p.cancel_status = 1))");
+            }
+        }
+
+        $row = $query
             ->selectRaw('ROUND(COALESCE(SUM(l.debit),0),2) as total_debit, ROUND(COALESCE(SUM(l.credit),0),2) as total_credit')
             ->first();
 

@@ -32,6 +32,7 @@
     </div>
 
     <div class="meta">
+        <div><strong>Branch / Outlet:</strong> {{ $voucher->outlet ? $voucher->outlet->name : 'Central Warehouse' }} {{ optional($voucher->outlet)->is_central ? '(Central Warehouse)' : '(Retail Branch)' }}</div>
         <div><strong>Reference:</strong> {{ $voucher->reference_no ?: '-' }}</div>
         @can('user-audit-view')
             @php
