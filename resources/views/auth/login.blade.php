@@ -6,14 +6,44 @@
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Sora:wght@500;600;700;800&display=swap');
 
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    html::-webkit-scrollbar,
+    body::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+    }
+
+    @media (min-height: 600px) {
+        body {
+            overflow-y: hidden;
+        }
+    }
+
+    .navbar-laravel {
+        display: none !important;
+    }
+
+    main {
+        padding: 0 !important;
+    }
+
     body {
         position: relative;
         font-family: 'Manrope', 'Segoe UI', sans-serif;
-        background-color: #0b1f2a !important;
+        background-color: #090e1a !important;
         background-image:
-            radial-gradient(circle at 12% 18%, rgba(255, 193, 7, 0.24) 0%, rgba(255, 193, 7, 0) 38%),
-            radial-gradient(circle at 85% 82%, rgba(56, 189, 248, 0.22) 0%, rgba(56, 189, 248, 0) 40%),
-            linear-gradient(130deg, rgba(7, 31, 43, 0.9) 0%, rgba(15, 23, 42, 0.82) 52%, rgba(9, 35, 48, 0.9) 100%),
+            radial-gradient(circle at 12% 18%, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 40%),
+            radial-gradient(circle at 85% 82%, rgba(5, 150, 105, 0.20) 0%, rgba(5, 150, 105, 0) 42%),
+            linear-gradient(130deg, rgba(9, 14, 26, 0.94) 0%, rgba(15, 23, 42, 0.88) 52%, rgba(9, 14, 26, 0.94) 100%),
             url('{{ asset('images/posbg1.jpg') }}') !important;
         background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
         background-size: auto, auto, cover, cover;
@@ -39,10 +69,12 @@
     }
 
     .auth-shell {
-        min-height: calc(100vh - 90px);
+        min-height: 100vh;
         display: flex;
+        align-items: center;
         justify-content: center;
-        padding: 28px 0;
+        padding: 12px 0;
+        box-sizing: border-box;
     }
 
     .auth-stage {
@@ -79,8 +111,8 @@
         width: 7px;
         height: 7px;
         border-radius: 999px;
-        background: #38bdf8;
-        box-shadow: 0 0 14px rgba(56, 189, 248, 0.85);
+        background: #10b981;
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.85);
     }
 
     .auth-welcome {
@@ -140,7 +172,7 @@
         position: absolute;
         inset: 0 0 auto 0;
         height: 4px;
-        background: linear-gradient(90deg, #f59e0b 0%, #38bdf8 50%, #0f172a 100%);
+        background: linear-gradient(90deg, #10b981 0%, #059669 50%, #0f172a 100%);
     }
 
     .auth-header {
@@ -186,24 +218,33 @@
     .auth-actions {
         display: flex;
         align-items: center;
-        justify-content: flex-start;
-        gap: 10px;
-        margin-top: 18px;
+        width: 100%;
+        margin-top: 22px;
     }
 
     .btn-auth {
-        background: #0f172a;
+        width: 100%;
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
         border: none;
         border-radius: 10px;
         color: #fff;
-        font-weight: 600;
-        padding: 10px 18px;
-        min-width: 126px;
+        font-weight: 700;
+        font-size: 15px;
+        padding: 12px 24px;
+        letter-spacing: 0.3px;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
 
     .btn-auth:hover {
-        background: #1e293b;
+        background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
         color: #fff;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
     }
 
     @keyframes enterUp {
@@ -350,11 +391,11 @@
         <div class="auth-hero">
             <p class="auth-kicker">DarpPOS</p>
             <p class="auth-welcome">Welcome to DarpPOS Multi-outlet System</p>
-            <p class="auth-subtext">Manage inventory, monitor sales, and keep operations in sync from one dashboard built for busy retail teams.</p>
+            <p class="auth-subtext">Centralize warehouse inventory, track branch stock transfers, and monitor real-time sales across all your outlets from one unified dashboard.</p>
             <ul class="auth-points">
-                <li>Fast Stock Tracking</li>
-                <li>Daily Sales Insight</li>
-                <li>Secure Access</li>
+                <li>Central & Branch Stock</li>
+                <li>Inter-Outlet Transfers</li>
+                <li>Consolidated Sales</li>
             </ul>
         </div>
 
@@ -426,7 +467,19 @@
 
                     <div class="mb-3">
                         <label for="password">{{ __('Password') }}</label>
-                        <input id="password" type="password" class="form-control @error('password') is-invalid @enderror" name="password" required autocomplete="current-password" placeholder="Enter password">
+                        <div class="position-relative">
+                            <input id="password" type="password" class="form-control @error('password') is-invalid @enderror" name="password" required autocomplete="current-password" placeholder="Enter password" style="padding-right: 44px;">
+                            <button type="button" id="togglePasswordBtn" class="btn btn-link position-absolute" style="top: 50%; right: 4px; transform: translateY(-50%); color: #64748b; text-decoration: none; padding: 6px 10px; z-index: 5; border: none; background: transparent; display: inline-flex; align-items: center;" aria-label="Toggle password visibility">
+                                <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                <svg id="eyeOffIcon" class="d-none" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            </button>
+                        </div>
                         <small class="form-text text-muted d-block mt-1">For your security, 3 failed login attempts will lock the system for 3 minutes.</small>
 
                         @error('password')
@@ -450,7 +503,7 @@
                     </div>
 
                     <div class="text-center mt-3" style="font-size:12px; color:#64748b; font-weight:600;">
-                        DarPOS V 2.0
+                        DarpPOS V 2.0
                     </div>
                 </form>
             </div>
@@ -488,6 +541,20 @@
             var topAlert = document.getElementById('loginTopAlert');
             var topAlertText = document.getElementById('loginTopAlertText');
             var topAlertClose = document.getElementById('loginTopAlertClose');
+            var togglePasswordBtn = document.getElementById('togglePasswordBtn');
+            var eyeIcon = document.getElementById('eyeIcon');
+            var eyeOffIcon = document.getElementById('eyeOffIcon');
+
+            if (togglePasswordBtn && passwordInput) {
+                togglePasswordBtn.addEventListener('click', function () {
+                    var isPassword = passwordInput.getAttribute('type') === 'password';
+                    passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+                    if (eyeIcon && eyeOffIcon) {
+                        eyeIcon.classList.toggle('d-none', isPassword);
+                        eyeOffIcon.classList.toggle('d-none', !isPassword);
+                    }
+                });
+            }
             var authNotifyMessage = @json($authNotifyMessage);
             var hasShownAuthNotify = false;
 

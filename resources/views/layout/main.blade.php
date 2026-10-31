@@ -46,17 +46,17 @@
         @stack('styles')
         <style>
             :root {
-                --pos-bg: #f5f7fa;
+                --pos-bg: #f8fafc;
                 --pos-surface: #ffffff;
-                --pos-text: #1f2937;
-                --pos-muted: #6b7280;
-                --pos-border: #e5e7eb;
-                --pos-primary: #2563eb;
-                --pos-primary-hover: #1d4ed8;
-                --pos-dark-btn: #0F766E;
-                --pos-card-border: #cbd5e1;
-                --pos-card-bg-start: #f8fafc;
-                --pos-card-bg-end: #eef2ff;
+                --pos-text: #0f172a;
+                --pos-muted: #64748b;
+                --pos-border: #e2e8f0;
+                --pos-primary: #059669;
+                --pos-primary-hover: #047857;
+                --pos-dark-btn: #0f172a;
+                --pos-card-border: #e2e8f0;
+                --pos-card-bg-start: #ffffff;
+                --pos-card-bg-end: #f8fafc;
             }
 
             body {
@@ -73,15 +73,15 @@
                 border: 1px solid var(--pos-card-border) !important;
                 border-radius: 12px !important;
                 background: linear-gradient(135deg, var(--pos-card-bg-start), var(--pos-card-bg-end)) !important;
-                box-shadow: 0 8px 20px rgba(24, 42, 76, 0.07) !important;
+                box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
                 transform: none !important;
                 transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
             }
 
             .main-content .card:not(.dashboard-metric-card):not(.payment-shell):not(.daily-email-card):not(.instruction-card):hover {
-                border-color: #b8ccd8 !important;
+                border-color: #cbd5e1 !important;
                 background: linear-gradient(135deg, var(--pos-card-bg-start), var(--pos-card-bg-end)) !important;
-                box-shadow: 0 10px 24px rgba(24, 42, 76, 0.1) !important;
+                box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
                 transform: none !important;
             }
 
@@ -154,27 +154,30 @@
 
             /* Yajra DataTables Global Styles */
             table.dataTable thead th {
-                border-bottom: 2px solid #dee2e6 !important;
+                border-bottom: 2px solid #cbd5e1 !important;
                 border-top: none !important;
                 border-left: none !important;
                 border-right: none !important;
-                background-color: #f3f4f6 !important;
-                color: var(--pos-text) !important;
-                font-weight: 600 !important;
-                padding: 12px 8px !important;
+                background-color: #f1f5f9 !important;
+                color: #0f172a !important;
+                font-weight: 700 !important;
+                font-size: 13px !important;
+                padding: 12px 10px !important;
+                letter-spacing: 0.2px !important;
             }
              table.dataTable tbody tr {
-                border-bottom: 1px solid #dee2e6 !important;
+                border-bottom: 1px solid #e2e8f0 !important;
                 border-top: none !important;
                 border-left: none !important;
                 border-right: none !important;
             }
 
             table.dataTable tbody td {
-                padding: 10px 8px !important;
+                padding: 11px 10px !important;
                 border: none !important;
-                border-bottom: 1px solid #dee2e6 !important;
-                color: var(--pos-text) !important;
+                border-bottom: 1px solid #e2e8f0 !important;
+                color: #1e293b !important;
+                font-size: 13.5px !important;
             }
             
             table.dataTable tbody tr:nth-child(odd) {
@@ -182,11 +185,11 @@
             }
             
             table.dataTable tbody tr:nth-child(even) {
-                background-color: #f8f9fa !important;
+                background-color: #f8fafc !important;
             }
             
             table.dataTable tbody tr:hover {
-                background-color: #e9ecef !important;
+                background-color: #f1f5f9 !important;
             }
             
             /* Remove all outer table borders */
@@ -194,35 +197,32 @@
                 border: none !important;
                 border-collapse: collapse !important;
             }
-            
-            table.dataTable tbody tr:hover {
-                background-color: #e9ecef !important;
-            }
 
             .form-control,
             .select2-container .select2-selection--single,
             .select2-container .select2-selection--multiple {
                 border-color: var(--pos-border) !important;
+                color: var(--pos-text) !important;
             }
 
             .form-control:focus,
             .select2-container--default.select2-container--focus .select2-selection--multiple,
             .select2-container--default.select2-container--open .select2-selection--single {
-                border-color: var(--pos-primary) !important;
-                box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.15) !important;
+                border-color: #059669 !important;
+                box-shadow: 0 0 0 0.2rem rgba(5, 150, 105, 0.15) !important;
             }
 
             .btn-dark,
             .btn-dark:focus,
             .btn-dark:active {
-                background-color: var(--pos-dark-btn) !important;
-                border-color: var(--pos-dark-btn) !important;
+                background-color: #0f172a !important;
+                border-color: #0f172a !important;
                 color: #fff !important;
             }
 
             .btn-dark:hover {
-                background-color: #0C5F58 !important;
-                border-color: #0C5F58 !important;
+                background-color: #1e293b !important;
+                border-color: #1e293b !important;
             }
 
             /* Modern DataTables Action Buttons (View, Edit, Delete) */
@@ -284,29 +284,29 @@
                 color: #ffffff !important;
             }
 
-            /* Edit: Modern Signature Teal Tint */
+            /* Edit: Modern Signature Emerald Tint */
             .btn-action-edit,
             .table-edit-btn {
-                background: #f0fdfa !important;
-                color: #0F766E !important;
-                border-color: #99f6e4 !important;
-                box-shadow: 0 1px 2px rgba(15, 118, 110, 0.08) !important;
+                background: #ecfdf5 !important;
+                color: #059669 !important;
+                border-color: #a7f3d0 !important;
+                box-shadow: 0 1px 2px rgba(5, 150, 105, 0.08) !important;
             }
 
             .btn-action-edit:hover,
             .table-edit-btn:hover {
-                background: #0F766E !important;
+                background: #059669 !important;
                 color: #ffffff !important;
-                border-color: #0F766E !important;
+                border-color: #059669 !important;
                 transform: translateY(-2px) !important;
-                box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3) !important;
+                box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3) !important;
             }
 
             .btn-action-edit i,
             .table-edit-btn i,
             .btn-action-edit svg,
             .table-edit-btn svg {
-                color: #0F766E !important;
+                color: #059669 !important;
                 font-size: 13px !important;
                 transition: color 0.15s ease !important;
             }
@@ -386,7 +386,7 @@
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
-                background: linear-gradient(135deg, #0F766E 0%, #0d9488 100%) !important;
+                background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
                 color: #ffffff !important;
                 border: none !important;
                 font-weight: 600 !important;
@@ -394,16 +394,16 @@
                 border-radius: 10px !important;
                 padding: 9px 24px !important;
                 letter-spacing: 0.2px !important;
-                box-shadow: 0 4px 14px rgba(15, 118, 110, 0.35) !important;
+                box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
                 transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
                 text-decoration: none !important;
             }
 
             .btn-modern-primary:hover {
-                background: linear-gradient(135deg, #115e59 0%, #0F766E 100%) !important;
+                background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
                 color: #ffffff !important;
                 transform: translateY(-2px) !important;
-                box-shadow: 0 6px 20px rgba(15, 118, 110, 0.45) !important;
+                box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45) !important;
             }
 
             .btn-modern-cancel {
@@ -425,7 +425,7 @@
 
             .btn-modern-cancel:hover {
                 background: #f8fafc !important;
-                color: #1e293b !important;
+                color: #0f172a !important;
                 border-color: #94a3b8 !important;
                 transform: translateY(-1px) !important;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
@@ -436,7 +436,7 @@
                 align-items: center;
                 gap: 6px;
                 background: #ffffff !important;
-                color: #0F766E !important;
+                color: #059669 !important;
                 border: 1.5px solid #cbd5e1 !important;
                 font-weight: 600 !important;
                 font-size: 13.5px !important;
@@ -448,11 +448,42 @@
             }
 
             .btn-modern-header:hover {
-                background: #f0fdfa !important;
-                color: #0F766E !important;
-                border-color: #0F766E !important;
+                background: #ecfdf5 !important;
+                color: #047857 !important;
+                border-color: #059669 !important;
                 transform: translateY(-1px) !important;
-                box-shadow: 0 4px 12px rgba(15, 118, 110, 0.15) !important;
+                box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15) !important;
+            }
+
+            /* Global Primary Button & Badge Override for Fintech Polish */
+            .btn-primary:not(.btn-modern-cancel):not(.btn-modern-header):not(.btn-action-view) {
+                background-color: #059669 !important;
+                border-color: #059669 !important;
+                color: #ffffff !important;
+            }
+
+            .btn-primary:not(.btn-modern-cancel):not(.btn-modern-header):not(.btn-action-view):hover,
+            .btn-primary:not(.btn-modern-cancel):not(.btn-modern-header):not(.btn-action-view):focus {
+                background-color: #047857 !important;
+                border-color: #047857 !important;
+                color: #ffffff !important;
+            }
+
+            .badge.bg-primary,
+            .badge-primary {
+                background-color: #059669 !important;
+                color: #ffffff !important;
+            }
+
+            footer.footer {
+                background: #ffffff !important;
+                border-top: 1px solid #e2e8f0 !important;
+                color: #64748b !important;
+            }
+
+            footer.footer a {
+                color: #059669 !important;
+                font-weight: 600 !important;
             }
 
             .header-quick-actions {

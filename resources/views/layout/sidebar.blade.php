@@ -1,13 +1,13 @@
 <style>
     .vertical-menu {
-        border-left: 1px solid #dbe6ef;
-        background: linear-gradient(180deg, #f8fbff 0%, #f2f7f7 100%);
-        box-shadow: -8px 0 24px rgba(24, 42, 76, 0.07);
+        border-right: 1px solid #1e293b;
+        background: linear-gradient(180deg, #090e1a 0%, #0f172a 60%, #111d33 100%);
+        box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
     }
 
     .vertical-menu .simplebar-content-wrapper {
         scrollbar-width: thin;
-        scrollbar-color: #a9c5c2 transparent;
+        scrollbar-color: #334155 transparent;
     }
 
     #sidebar-menu {
@@ -17,10 +17,11 @@
     #sidebar-menu .menu-title {
         margin: 12px 8px 5px;
         padding: 8px 10px 5px !important;
-        color: #78909c;
+        color: #64748b;
         font-size: 10px;
         font-weight: 700;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
         opacity: 1;
     }
 
@@ -28,53 +29,57 @@
     #sidebar-menu > ul > li > ul > li > a {
         min-height: 44px;
         margin: 3px 4px;
-        padding: 10px 9px;
+        padding: 10px 10px;
         border: 1px solid transparent;
         border-radius: 8px;
-        color: #425466;
+        color: #94a3b8;
         font-size: 13px;
         font-weight: 600;
         white-space: nowrap;
-        transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+        transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
     }
 
     #sidebar-menu ul li a i {
         width: 24px;
         min-width: 24px;
         margin-left: 4px;
-        color: #668078;
+        color: #64748b;
         font-size: 16px;
         text-align: center;
         opacity: 1;
+        transition: color 0.16s ease;
     }
 
     #sidebar-menu ul li a:hover {
-        border-color: #d8e9e6;
-        background: #edf7f5;
-        color: #0f766e;
+        border-color: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.06);
+        color: #ffffff;
     }
 
     #sidebar-menu ul li a:hover i {
-        color: #0f766e;
+        color: #10b981;
     }
 
     #sidebar-menu ul li > a.active,
     #sidebar-menu ul li.mm-active > a {
-        border-color: #c6e2dd;
-        background: #dff1ee;
-        color: #0b625c !important;
-        box-shadow: 0 3px 9px rgba(15, 118, 110, 0.1);
+        border-color: rgba(16, 185, 129, 0.4);
+        border-left: 3px solid #10b981 !important;
+        background: linear-gradient(90deg, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.06) 100%);
+        color: #34d399 !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
     }
 
     #sidebar-menu ul li > a.active i,
     #sidebar-menu ul li.mm-active > a i {
-        color: #0f766e !important;
+        color: #34d399 !important;
     }
 
     #sidebar-menu ul li ul.sub-menu {
         margin: 2px 9px 7px;
         padding: 4px 0 4px 8px;
-        border-left: 1px solid #d7e4e7;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(9, 14, 26, 0.55);
+        border-radius: 6px;
     }
 
     #sidebar-menu ul li ul.sub-menu li a,
@@ -83,19 +88,24 @@
         margin: 2px 0;
         padding: 8px 12px;
         border-radius: 7px;
-        color: #637484;
+        color: #94a3b8;
         font-size: 12.5px;
     }
 
     #sidebar-menu ul li ul.sub-menu li a:hover,
     #sidebar-menu ul li ul.sub-menu li a.active {
-        background: #e8f4f2;
-        color: #0f766e !important;
+        background: rgba(16, 185, 129, 0.14);
+        color: #34d399 !important;
     }
 
     #sidebar-menu .has-arrow:after {
-        color: #8aa09d;
+        color: #64748b;
         font-size: 14px;
+    }
+
+    #sidebar-menu ul li a:hover .has-arrow:after,
+    #sidebar-menu ul li.mm-active > a.has-arrow:after {
+        color: #10b981;
     }
 
     .vertical-collpsed .vertical-menu #sidebar-menu > ul > li > a {
@@ -107,14 +117,14 @@
 
     .vertical-collpsed .vertical-menu #sidebar-menu > ul > li:hover > a,
     .vertical-collpsed .vertical-menu #sidebar-menu > ul > li:hover > ul {
-        background: #f8fbff;
-        box-shadow: 0 10px 22px rgba(24, 42, 76, 0.14);
+        background: #0f172a;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
     }
 
     @media (max-width: 991.98px) {
         body.sidebar-enable .vertical-menu {
             border-left: 0;
-            box-shadow: -10px 12px 28px rgba(24, 42, 76, 0.18);
+            box-shadow: -10px 12px 28px rgba(15, 23, 42, 0.4);
         }
     }
 </style>

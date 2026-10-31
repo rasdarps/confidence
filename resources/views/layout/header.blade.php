@@ -1,8 +1,8 @@
 <style>
     #page-topbar {
-        border-bottom: 1px solid rgba(7, 72, 68, 0.7);
-        background: linear-gradient(105deg, #0b5f59 0%, #0f766e 58%, #126b72 100%);
-        box-shadow: 0 6px 18px rgba(15, 45, 58, 0.16);
+        border-bottom: 1px solid #1e293b;
+        background: linear-gradient(105deg, #090e1a 0%, #0f172a 58%, #1e293b 100%);
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.35);
     }
 
     #page-topbar .navbar-header {
@@ -100,9 +100,9 @@
 
     #page-topbar .header-quick-actions .quick-action-btn:hover,
     #page-topbar .header-quick-actions .quick-action-btn:focus-visible {
-        border-color: rgba(255, 255, 255, 0.42);
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff;
+        border-color: rgba(16, 185, 129, 0.6);
+        background: rgba(16, 185, 129, 0.22);
+        color: #34d399;
         transform: translateY(-1px);
     }
 
@@ -162,8 +162,8 @@
 
     #page-topbar .dropdown-item:hover,
     #page-topbar .dropdown-item:focus {
-        background: #e8f4f2;
-        color: #0f766e;
+        background: #ecfdf5;
+        color: #059669;
     }
 
     @media (max-width: 991.98px) {
