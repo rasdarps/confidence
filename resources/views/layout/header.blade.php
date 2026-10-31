@@ -448,6 +448,7 @@
             @if(Auth::user()->isCentral() && Auth::user()->can('settings-manage'))
             <a class="dropdown-item d-block" href="{{ route('settings.index') }}"><i class="ri-settings-2-line align-middle me-1"></i> Settings</a>
             @endif
+            <a class="dropdown-item d-block" href="{{ asset('docs/DarpPOS_User_Manual.pdf') }}" target="_blank"><i class="ri-book-read-line align-middle me-1"></i> User Manual (PDF)</a>
             <a class="dropdown-item" href="#"><i class="ri-lock-unlock-line align-middle me-1"></i> Lock screen</a>
             <div class="dropdown-divider"></div>
 

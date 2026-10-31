@@ -24,6 +24,9 @@ yarn-error.log
 /FLUTTER_MOBILE_API_GUIDE.txt
 /installation_guide.txt
 *.[pP][dD][fF]
+!/public/docs/*.pdf
+!/DarpPOS_User_Manual.pdf
+!/Confidence_POS_User_Manual.pdf
 
 .DS_Store
 Thumbs.db

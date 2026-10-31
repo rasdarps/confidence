@@ -46,7 +46,7 @@ class ConversationController extends Controller
             'customer_balance' => 'Customer outstanding balances',
             'supplier_balance' => 'Supplier outstanding balances',
             'low_stock' => $selectedOutlet ? 'Low stock at this outlet' : 'Show low stock',
-            'stock_balance' => $selectedOutlet ? 'Stock balance for this outlet' : 'Show total stock balance',
+            'stock_balance' => $selectedOutlet ? 'Stock balance in bags/boxes & pieces' : 'Show stock balance in bags/boxes & pieces',
             'stock_value' => $selectedOutlet ? 'Stock value for this outlet' : 'Show total stock value',
             'top_products' => 'Best-selling products this month',
             'expenses' => 'Expenses this month by category',
@@ -106,4 +106,4 @@ class ConversationController extends Controller
             return response()->json(['status' => 'clarification', 'message' => $exception->getMessage()]);
         }
     }
-}
+}

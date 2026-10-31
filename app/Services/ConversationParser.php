@@ -9,11 +9,24 @@ class ConversationParser
 {
     public function parse(string $message, array $context = []): array
     {
-        if (preg_match('/^(.*?\b(?:stock|inventory)(?:\s+(?:balance|value|quantity))?\s+(?:for|of)\s+)(?:product\s+)?(?!["\']|(?:customer|supplier|category|account|product|all|today|yesterday|this|last|overall)\b|\d{4}-)([^"\']+)$/i', trim($message), $productMatches)) {
-            $parts = preg_split('/(?=\s+(?:today|yesterday|this|last|on\s+\d{4}-|from\s+\d{4}-|in\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b)/i', $productMatches[2], 2);
-            $productName = rtrim(trim($parts[0]), '?');
+        // 1. Match questions asking "how many [boxes/bags/pieces] of [product]"
+        if (preg_match('/^(?:how many\s+(?:boxes|bags|pieces|packs|cartons|units)?(?:\s*(?:and|&|\/)\s*(?:pieces|boxes|bags|packs|cartons))?\s+(?:of|for)\s+)(?:product\s+)?(?!["\'])([^"\']+)$/i', trim($message), $howManyMatches)) {
+            $parts = preg_split('/(?=\s+(?:today|yesterday|this|last|at|in\s+outlet|in\s+branch|on\s+\d{4}-|from\s+\d{4}-)\b)/i', $howManyMatches[1], 2);
+            $productName = rtrim(trim($parts[0]), '?.');
+            $productName = preg_replace('/\b(?:in stock|do we have|available|left|remaining|on hand)\b/i', '', $productName);
+            $productName = trim($productName);
             if ($productName !== '') {
-                $message = $productMatches[1].'product "'.$productName.'"'.($parts[1] ?? '');
+                $message = 'stock balance for product "'.$productName.'"'.(isset($parts[1]) ? ' '.$parts[1] : '');
+            }
+        } elseif (preg_match('/^(.*?\b(?:stock|inventory|quantity|quantities|how many)(?:\s+(?:balance|value|quantity|bags|boxes|pieces|packs|cartons))?\s+(?:for|of)\s+)(?:product\s+)?(?!["\']|(?:customer|supplier|category|account|product|all|today|yesterday|this|last|overall)\b|\d{4}-)([^"\']+)$/i', trim($message), $productMatches)) {
+            $parts = preg_split('/(?=\s+(?:today|yesterday|this|last|on\s+\d{4}-|from\s+\d{4}-|in\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b)/i', $productMatches[2], 2);
+            $productName = rtrim(trim($parts[0]), '?.');
+            // Clean out "in boxes and pieces", "in bags and pieces", "in stock", etc.
+            $productName = preg_replace('/\s+in\s+(?:bags|boxes|pieces|packs|cartons)(?:\s+(?:and|&|\/)\s*(?:bags|boxes|pieces|packs|cartons))?/i', '', $productName);
+            $productName = preg_replace('/\b(?:in stock|available|remaining|on hand)\b/i', '', $productName);
+            $productName = trim($productName);
+            if ($productName !== '') {
+                $message = $productMatches[1].'product "'.$productName.'"'.(isset($parts[1]) ? ' '.$parts[1] : '');
             }
         }
         $text = strtolower(trim(preg_replace('/\s+/', ' ', $message)));
@@ -28,7 +41,7 @@ class ConversationParser
         $intent = match (true) {
             (bool) preg_match('/\b(low stock|below.*stock|restock)\b/', $text) => 'low_stock',
             (bool) preg_match('/\b(best.selling|top products|most sold)\b/', $text) => 'top_products',
-            (bool) preg_match('/\b(stock|inventory)\b/', $text) => preg_match('/\b(value|values|valuation|worth)\b/', $text) ? 'stock_value' : 'stock_balance',
+            (bool) preg_match('/\b(stock|inventory|bags|boxes|pieces|cartons|packs|how many|quantity|quantities)\b/', $text) => preg_match('/\b(value|values|valuation|worth)\b/', $text) ? 'stock_value' : 'stock_balance',
             !empty($context['intent']) && in_array($context['intent'], ['stock_balance', 'stock_value'], true) && (bool) preg_match('/\b(value|values|valuation|worth)\b/', $text) => 'stock_value',
             (bool) preg_match('/\b(expense|expenses|spend|spending|spent)\b/', $text) => 'expenses',
             (bool) preg_match('/\b(bank|banking|deposits|withdrawals)\b/', $text) => preg_match('/\bbalances?\b/', $text) ? 'bank_balances' : 'bank_transactions',
@@ -40,10 +53,10 @@ class ConversationParser
             default => null,
         };
         if (!$intent && !preg_match('/^(what about |and |only |compare |break |by |today|yesterday|this |last |from |in |on |\d{4}-)/', $text)) {
-            throw new InvalidArgumentException('Please ask about sales, collections, customer or supplier balances, purchases, stock, banking, or expenses.');
+            throw new InvalidArgumentException('Please ask about sales, collections, customer or supplier balances, purchases, stock in bags/pieces, banking, or expenses.');
         }
         if (!$intent && empty($context['intent'])) {
-            throw new InvalidArgumentException('Which report would you like: sales, collections, purchases, balances, stock, banking, or expenses?');
+            throw new InvalidArgumentException('Which report would you like: sales, collections, purchases, balances, stock in bags/pieces, banking, or expenses?');
         }
         $sameIntent = !$intent || $intent === ($context['intent'] ?? null);
         if (in_array($intent, ['stock_balance', 'stock_value'], true) && in_array($context['intent'] ?? null, ['stock_balance', 'stock_value'], true)) {
@@ -69,7 +82,7 @@ class ConversationParser
                 throw new InvalidArgumentException('Please specify the '.$entity.' name in quotes, for example '.$entity.' "Example Name".');
             }
         }
-        if (in_array($result['intent'], ['stock_balance', 'stock_value'], true) && preg_match('/\b(?:stock|inventory)(?:\s+(?:balance|value|quantity))?\s+(?:of|for)\s+["\']([^"\']+)["\']/i', $message, $matches)) {
+        if (in_array($result['intent'], ['stock_balance', 'stock_value'], true) && preg_match('/\b(?:stock|inventory|how many|quantity|balance|pieces|bags|boxes|packs)(?:\s+(?:balance|value|quantity|pieces|bags|boxes|packs))?\s+(?:of|for)\s+["\']([^"\']+)["\']/i', $message, $matches)) {
             $result['product'] = trim($matches[1]);
         }
         if (preg_match('/\bfor\s+(?!customer\b|supplier\b|category\b|account\b|product\b|outlet\b|branch\b|location\b|today\b|yesterday\b|this\b|last\b|all\b|january\b|february\b|march\b|april\b|may\b|june\b|july\b|august\b|september\b|october\b|november\b|december\b)[a-z]+/', $text)

@@ -701,6 +701,14 @@
                         </li><!--user li ends--> 
                         @endcanany
                         {{-- setup user ends    --}}
+                        
+                        <li class="menu-title">Help &amp; Guides</li>
+                        <li>
+                            <a href="{{ asset('docs/DarpPOS_User_Manual.pdf') }}" target="_blank" class="waves-effect">
+                                <i class="fa fa-book-open"></i>
+                                <span>User Manual (PDF)</span>
+                            </a>
+                        </li>
                         </ul>
                     </div>
                     <!-- Sidebar -->

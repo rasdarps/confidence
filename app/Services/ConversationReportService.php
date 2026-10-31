@@ -264,21 +264,31 @@ class ConversationReportService
     private function stock(array $report, ?int $outletId = null): array
     {
         if ($report['intent'] === 'low_stock') {
-            $query = Product::with(['outletStocks' => function ($q) use ($outletId) {
+            $query = Product::with(['unit', 'subUnit', 'outletStocks' => function ($q) use ($outletId) {
                 if ($outletId) $q->where('outlet_id', $outletId);
             }])->lowStock($outletId);
 
             $count = (clone $query)->count();
-            $rows = $query->orderBy('name')->limit(50)->get(['id', 'name'])
+            $rows = $query->orderBy('name')->limit(50)->get(['id', 'name', 'unit_id', 'has_sub_unit', 'sub_unit_id', 'pieces_per_pack'])
                 ->map(function ($row) use ($outletId) {
                     $stock = $outletId ? $row->stockForOutlet($outletId) : null;
-                    $qty = $outletId ? ($stock ? (float) $stock->quantity : 0) : $row->quantity;
-                    $threshold = $outletId ? ($stock ? (float) $stock->stock_level : 0) : $row->stock_level;
-                    return [$row->name, $qty, $threshold];
+                    $qty = $outletId ? ($stock ? (float) $stock->quantity : 0) : (float) $row->quantity;
+                    $threshold = $outletId ? ($stock ? (float) $stock->stock_level : 0) : (float) $row->stock_level;
+
+                    $breakdown = $row->formatQuantity($qty);
+                    if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                        $subName = $row->subUnit?->name ?? 'pcs';
+                        $breakdown .= " ({$qty} {$subName})";
+                    }
+
+                    $threshBreakdown = $row->formatQuantity($threshold);
+
+                    return [$row->name, $breakdown, $threshBreakdown];
                 })->all();
-            return $this->result($report, 'Low stock', ['Products at or below threshold' => $count], ['Product', 'Quantity', 'Threshold'], $rows,
-                ['Current stock, including out-of-stock products; not a historical snapshot.'], 'stock.report', 'Current stock', $outletId);
+            return $this->result($report, 'Low stock', ['Products at or below threshold' => $count], ['Product', 'Current Stock (Bags/Boxes & Pieces)', 'Threshold'], $rows,
+                ['Current stock, including out-of-stock products; not a historical snapshot. Quantities display wholesale packs (Bags/Boxes) and loose pieces.'], 'stock.report', 'Current stock', $outletId);
         }
+
         $query = DB::table('sale_details')->join('sales', 'sales.id', '=', 'sale_details.sale_id')
             ->join('products', 'products.id', '=', 'sale_details.product_id')->whereNull('sales.deleted_at')->whereNull('sales.cancelled_at')->whereNull('products.deleted_at');
         $this->range($query, 'sales.date', $report);
@@ -287,61 +297,108 @@ class ConversationReportService
         }
         $rows = $query->selectRaw('products.id, products.name, SUM(sale_details.selling_qty) as quantity')
             ->groupBy('products.id', 'products.name')->orderByDesc('quantity')->limit(10)->get()
-            ->map(fn ($row) => [$row->name, (float) $row->quantity])->all();
-        return $this->result($report, 'Best-selling products', [], ['Product', 'Units sold'], $rows,
-            ['Top 10 by quantity sold, not revenue. Quantities may use different product units. Cancelled and deleted sales are excluded.'], 'reports.sales-lines', null, $outletId);
+            ->map(function ($row) {
+                $product = Product::with(['unit', 'subUnit'])->find($row->id);
+                $breakdown = $product ? $product->formatQuantity($row->quantity) : (float) $row->quantity;
+                $totalPieces = (float) $row->quantity;
+                return [$row->name, $breakdown, $totalPieces];
+            })->all();
+        return $this->result($report, 'Best-selling products', [], ['Product', 'Sales Breakdown (Packs & Pieces)', 'Total Pieces Sold'], $rows,
+            ['Top 10 by quantity sold, not revenue. Formatted into wholesale packs and loose pieces. Cancelled and deleted sales are excluded.'], 'reports.sales-lines', null, $outletId);
     }
 
     private function stockBalance(array $report, ?int $outletId = null): array
     {
         $value = $report['intent'] === 'stock_value';
-        $query = Product::query()->leftJoin('units', 'units.id', '=', 'products.unit_id');
+        $query = Product::query()->with(['unit', 'subUnit']);
         if ($id = $this->entity(Product::class, $report['product'] ?? null)) {
             $query->where('products.id', $id);
         }
         if ($id = $this->entity(Category::class, $report['category'] ?? null)) {
             $query->where('products.category_id', $id);
         }
+
         $metrics = ['Product count' => (clone $query)->count()];
+
         $totalsQuery = (clone $query)->leftJoin('outlet_stocks', function ($join) use ($outletId) {
             $join->on('outlet_stocks.product_id', '=', 'products.id');
             if ($outletId) {
                 $join->where('outlet_stocks.outlet_id', '=', $outletId);
             }
         });
-        $totals = $totalsQuery->toBase()->selectRaw('units.name as unit_name, COALESCE(SUM(outlet_stocks.quantity), 0) as quantity')->groupBy('units.name')->orderBy('units.name')->get();
-        foreach ($totals as $total) {
-            $metrics['Total quantity ('.($total->unit_name ?? 'Unassigned unit').')'] = round((float) $total->quantity, 4);
-        }
-        $columns = ['Product', 'Unit', 'Quantity'];
-        $notes = ['Current recorded stock, not a historical snapshot. Deleted products are excluded.', 'Quantity totals are separated by unit; boxes, pieces, and kilograms are not combined. Zero and negative quantities are included as recorded.'];
-        $fields = ['products.id', 'products.name', 'units.name as unit_name'];
+
+        $totalPieces = (float) (clone $totalsQuery)->toBase()->selectRaw('COALESCE(SUM(outlet_stocks.quantity), 0) as total_qty')->value('total_qty');
+        $metrics['Total loose pieces'] = round($totalPieces, 0);
+
+        $columns = ['Product', 'Packaging Type', 'Stock Breakdown (Bags/Boxes & Pieces)', 'Total Pieces'];
+        $notes = [
+            'Current recorded stock, not a historical snapshot. Deleted products are excluded.',
+            'Stock is displayed with full wholesale packs (Bags/Boxes) and loose pieces breakdown according to the pieces-per-pack conversion ratio.',
+        ];
+
         if ($value) {
-            $valueQuery = (clone $query)->leftJoin('outlet_stocks', function ($join) use ($outletId) {
-                $join->on('outlet_stocks.product_id', '=', 'products.id');
-                if ($outletId) {
-                    $join->where('outlet_stocks.outlet_id', '=', $outletId);
-                }
-            });
-            $metrics['Stock value at cost'] = round((float) (clone $valueQuery)->toBase()->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.cost_price, 0)), 0) as value')->value('value'), 2);
-            $metrics['Stock value at selling price'] = round((float) (clone $valueQuery)->toBase()->selectRaw('COALESCE(SUM(outlet_stocks.quantity * COALESCE(products.selling_price, 0)), 0) as value')->value('value'), 2);
-            $columns = array_merge($columns, ['Cost value', 'Selling value']);
-            $fields = array_merge($fields, ['products.cost_price', 'products.selling_price']);
-            $notes[] = 'Values use current quantity multiplied by the stored cost or selling price, matching the Stock Value report. Selling value is potential retail value, not realised revenue or profit. Missing prices contribute zero.';
+            $valueCostSql = 'COALESCE(SUM(outlet_stocks.quantity * (CASE WHEN products.has_sub_unit = 1 AND products.pieces_per_pack > 1 THEN COALESCE(products.sub_unit_cost_price, products.cost_price / products.pieces_per_pack, 0) ELSE COALESCE(products.cost_price, 0) END)), 0)';
+            $valueSellSql = 'COALESCE(SUM(outlet_stocks.quantity * (CASE WHEN products.has_sub_unit = 1 AND products.pieces_per_pack > 1 THEN COALESCE(products.sub_unit_selling_price, products.selling_price / products.pieces_per_pack, 0) ELSE COALESCE(products.selling_price, 0) END)), 0)';
+
+            $metrics['Stock value at cost'] = round((float) (clone $totalsQuery)->toBase()->selectRaw($valueCostSql . ' as value')->value('value'), 2);
+            $metrics['Stock value at selling price'] = round((float) (clone $totalsQuery)->toBase()->selectRaw($valueSellSql . ' as value')->value('value'), 2);
+
+            $columns = array_merge($columns, ['Cost value (₵)', 'Selling value (₵)']);
+            $notes[] = 'Stock valuation calculates unit cost and selling price per loose piece when products have sub-units (pieces/pack), matching the Stock Value report.';
         }
-        $rows = $query->with(['outletStocks' => function ($q) use ($outletId) {
+
+        $rows = $query->with(['unit', 'subUnit', 'outletStocks' => function ($q) use ($outletId) {
             if ($outletId) $q->where('outlet_id', $outletId);
-        }])->orderBy('products.name')->limit(50)->get($fields)->map(function ($product) use ($value, $outletId) {
+        }])->orderBy('products.name')->limit(50)->get()->map(function ($product) use ($value, $outletId) {
             $qty = $outletId ? $product->quantityForOutlet($outletId) : (float) $product->quantity;
-            $row = [$product->name, $product->unit_name ?? 'Unassigned unit', $qty];
-            if ($value) {
-                $row[] = number_format($qty * (float) $product->cost_price, 2);
-                $row[] = number_format($qty * (float) $product->selling_price, 2);
+
+            // Packaging description
+            if ($product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                $packName = $product->unit?->name ?? 'Pack';
+                $subName = $product->subUnit?->name ?? 'Piece';
+                $packagingType = "{$packName} ({$product->pieces_per_pack} {$subName}/{$packName})";
+            } else {
+                $packagingType = $product->unit?->name ?? 'Piece';
             }
+
+            // Dual packaging breakdown
+            $breakdown = $product->formatQuantity($qty);
+            $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+
+            $row = [
+                $product->name,
+                $packagingType,
+                $breakdown,
+                $totalPieces . ' ' . ($product->subUnit?->name ?? $product->unit?->name ?? 'pcs'),
+            ];
+
+            if ($value) {
+                $unitCost = ($product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($product->sub_unit_cost_price ?: ($product->cost_price / $product->pieces_per_pack))
+                    : (float) $product->cost_price;
+
+                $unitSell = ($product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($product->sub_unit_selling_price ?: ($product->selling_price / $product->pieces_per_pack))
+                    : (float) $product->selling_price;
+
+                $row[] = number_format($qty * $unitCost, 2);
+                $row[] = number_format($qty * $unitSell, 2);
+            }
+
             return $row;
         })->all();
-        return $this->result($report, $value ? 'Current stock value and balances' : 'Current stock balances', $metrics, $columns, $rows, $notes,
-            $value ? 'stock.stock_value' : 'stock.report', 'Current stock', $outletId);
+
+        return $this->result(
+            $report,
+            $value ? 'Current stock value and balances' : 'Current stock balances',
+            $metrics,
+            $columns,
+            $rows,
+            $notes,
+            $value ? 'stock.stock_value' : 'stock.report',
+            'Current stock',
+            $outletId
+        );
     }
 
     private function banking(array $report, ?int $outletId = null): array
@@ -426,4 +483,3 @@ class ConversationReportService
         ];
     }
 }
-
