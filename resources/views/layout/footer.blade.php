@@ -6,7 +6,7 @@
             </div>
             <div class="col-sm-6">
                 <div class="text-sm-end d-none d-sm-block">
-                    <i class="fa fa-building"></i> (c) 2026 Rasdarps Enterprise
+                    <i class="fa fa-building"></i> (c) 2026 DarpPOS Multi-outlet System
                 </div>
             </div>
         </div>

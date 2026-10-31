@@ -348,8 +348,8 @@
 <div class="auth-shell">
     <div class="auth-stage">
         <div class="auth-hero">
-            <p class="auth-kicker">Rasdarps POS</p>
-            <p class="auth-welcome">Welcome to Rasdarps Enterprise POS System</p>
+            <p class="auth-kicker">DarpPOS</p>
+            <p class="auth-welcome">Welcome to DarpPOS Multi-outlet System</p>
             <p class="auth-subtext">Manage inventory, monitor sales, and keep operations in sync from one dashboard built for busy retail teams.</p>
             <ul class="auth-points">
                 <li>Fast Stock Tracking</li>
@@ -450,7 +450,7 @@
                     </div>
 
                     <div class="text-center mt-3" style="font-size:12px; color:#64748b; font-weight:600;">
-                        DarPOS V 1.0
+                        DarPOS V 2.0
                     </div>
                 </form>
             </div>

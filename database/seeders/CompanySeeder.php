@@ -18,7 +18,7 @@ class CompanySeeder extends Seeder
         //
         //
          $company = array(
-            array('name' => 'Rasdarps Enterprise', 'address' => 'Kotobabi Down, Accra, Ghana',
+            array('name' => 'DarpPOS Multi-outlet System', 'address' => 'Kotobabi Down, Accra, Ghana',
             'phone' =>'0242222874', 'tin_number' => 'GHA-000000000-0', 'email'=>'rasdarps@gmail.com',
             ),
         );
