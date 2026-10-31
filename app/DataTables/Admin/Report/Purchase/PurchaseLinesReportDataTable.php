@@ -25,7 +25,14 @@ class PurchaseLinesReportDataTable extends DataTable
                 return '<span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="ri-building-4-line me-1"></i>' . e($centralName) . ' <small>(Central)</small></span>';
             })
             ->editColumn('buying_qty', function ($row) {
-                return number_format((float) $row->buying_qty, 2);
+                if ($row->product && $row->product->has_sub_unit && ($row->pieces_per_pack ?: ($row->product->pieces_per_pack ?: 1)) > 1) {
+                    $qty = (float) $row->buying_qty;
+                    $subName = $row->product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong>' . e($row->formatted_qty) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                $unitName = $row->product?->unit?->name ?? 'units';
+                return '<strong>' . ($row->product ? e($row->product->formatQuantity($row->buying_qty)) : number_format((float) $row->buying_qty, 2)) . '</strong>';
             })
             ->editColumn('unit_cost_price', function ($row) {
                 return number_format((float) $row->unit_cost_price, 2);
@@ -33,7 +40,7 @@ class PurchaseLinesReportDataTable extends DataTable
             ->editColumn('buying_price', function ($row) {
                 return number_format((float) $row->buying_price, 2);
             })
-            ->rawColumns(['receiving_location'])
+            ->rawColumns(['receiving_location', 'buying_qty'])
             ->setRowId('id');
     }
 
@@ -45,6 +52,7 @@ class PurchaseLinesReportDataTable extends DataTable
             ->leftJoin('suppliers', 'suppliers.id', '=', 'purchase_payments.supplier_id')
             ->leftJoin('products', 'products.id', '=', 'purchase_details.product_id')
             ->leftJoin('categories', 'categories.id', '=', 'purchase_details.category_id')
+            ->with(['product.unit', 'product.subUnit'])
             ->select([
                 'purchase_details.id',
                 'purchase_details.purchase_id',

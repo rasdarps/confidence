@@ -43,7 +43,7 @@ class StockTransferController extends Controller
         $toOutlets = Outlet::where('is_active', true)->get();
 
         // Products with stock in source warehouse
-        $products = Product::with(['category', 'unit', 'outletStocks'])->orderBy('name')->get();
+        $products = Product::with(['category', 'unit', 'subUnit', 'outletStocks'])->orderBy('name')->get();
 
         $transferNo = StockTransfer::generateTransferNo();
         $date = Carbon::now()->format('Y-m-d');
@@ -128,6 +128,7 @@ class StockTransferController extends Controller
                 'fromOutlet',
                 'toOutlet',
                 'items.product.unit',
+                'items.product.subUnit',
                 'dispatchedBy',
                 'receivedBy'
             ])->findOrFail($id);

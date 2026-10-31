@@ -63,11 +63,37 @@
         <tbody>
             @forelse($adjustment->items as $index => $item)
                 <tr>
+                    @php
+                        $p = $item->product;
+                        $hasSub = $p && $p->has_sub_unit && ($p->pieces_per_pack ?: 1) > 1;
+                        $subName = $p?->subUnit?->name ?? 'pcs';
+                    @endphp
                     <td>{{ $index + 1 }}</td>
                     <td>{{ optional($item->product)->name }}</td>
-                    <td>{{ number_format((float) $item->before_qty, 2) }}</td>
-                    <td>{{ number_format((float) $item->qty, 2) }}</td>
-                    <td>{{ number_format((float) $item->after_qty, 2) }}</td>
+                    <td>
+                        @if($hasSub)
+                            <strong>{{ $p->formatQuantity($item->before_qty) }}</strong>
+                            <br><small style="color: #666;">({{ (float) $item->before_qty == (int) $item->before_qty ? (int) $item->before_qty : number_format($item->before_qty, 2) }} {{ $subName }})</small>
+                        @else
+                            {{ $p ? $p->formatQuantity($item->before_qty) : number_format((float) $item->before_qty, 2) }}
+                        @endif
+                    </td>
+                    <td>
+                        @if($hasSub)
+                            <strong>{{ $p->formatQuantity($item->qty) }}</strong>
+                            <br><small style="color: #666;">({{ (float) $item->qty == (int) $item->qty ? (int) $item->qty : number_format($item->qty, 2) }} {{ $subName }})</small>
+                        @else
+                            <strong>{{ $p ? $p->formatQuantity($item->qty) : number_format((float) $item->qty, 2) }}</strong>
+                        @endif
+                    </td>
+                    <td>
+                        @if($hasSub)
+                            <strong>{{ $p->formatQuantity($item->after_qty) }}</strong>
+                            <br><small style="color: #666;">({{ (float) $item->after_qty == (int) $item->after_qty ? (int) $item->after_qty : number_format($item->after_qty, 2) }} {{ $subName }})</small>
+                        @else
+                            {{ $p ? $p->formatQuantity($item->after_qty) : number_format((float) $item->after_qty, 2) }}
+                        @endif
+                    </td>
                     <td>{{ number_format((float) $item->unit_cost, 2) }}</td>
                     <td>{{ number_format((float) $item->amount, 2) }}</td>
                     <td>{{ $item->description ?: '-' }}</td>

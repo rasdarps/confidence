@@ -55,21 +55,67 @@ class StockReportDataTable extends DataTable
                 return $row->movement_at ? Carbon::parse($row->movement_at)->format('d-m-Y') : '';
             })
             ->editColumn('qty_in', function ($row) {
-                return number_format((float) $row->qty_in, 2);
+                $qty = (float) $row->qty_in;
+                if ($qty <= 0) return '<span class="text-muted">0</span>';
+                $product = $row->product;
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $product->formatQuantity($qty);
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong class="text-success">' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong class="text-success">' . ($product ? e($product->formatQuantity($qty)) : number_format($qty, 2)) . '</strong>';
             })
             ->editColumn('qty_out', function ($row) {
-                return number_format((float) $row->qty_out, 2);
+                $qty = (float) $row->qty_out;
+                if ($qty <= 0) return '<span class="text-muted">0</span>';
+                $product = $row->product;
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $product->formatQuantity($qty);
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong class="text-danger">' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong class="text-danger">' . ($product ? e($product->formatQuantity($qty)) : number_format($qty, 2)) . '</strong>';
             })
             ->editColumn('delta_qty', function ($row) {
-                return number_format((float) $row->delta_qty, 2);
+                $delta = (float) $row->delta_qty;
+                if ($delta == 0) return '<span class="text-muted">0</span>';
+                $product = $row->product;
+                $sign = $delta > 0 ? '+' : '';
+                $colorClass = $delta > 0 ? 'text-success' : 'text-danger';
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $product->formatQuantity($delta);
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $delta == (int) $delta ? (int) $delta : number_format($delta, 2);
+                    return '<strong class="' . $colorClass . '">' . ($delta > 0 ? '+' : '') . e($formatted) . '</strong><br><small class="text-muted">(' . ($delta > 0 ? '+' : '') . $totalPieces . ' ' . e($subName) . ')</small>';
+                }
+                $formatted = $product ? $product->formatQuantity(abs($delta)) : number_format(abs($delta), 2);
+                return '<strong class="' . $colorClass . '">' . $sign . e($formatted) . '</strong>';
             })
             ->editColumn('balance_before', function ($row) {
-                return number_format((float) $row->balance_before, 2);
+                $bal = (float) $row->balance_before;
+                $product = $row->product;
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $product->formatQuantity($bal);
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $bal == (int) $bal ? (int) $bal : number_format($bal, 2);
+                    return '<strong>' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong>' . ($product ? e($product->formatQuantity($bal)) : number_format($bal, 2)) . '</strong>';
             })
             ->editColumn('balance_after', function ($row) {
-                return number_format((float) $row->balance_after, 2);
+                $bal = (float) $row->balance_after;
+                $product = $row->product;
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $product->formatQuantity($bal);
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $bal == (int) $bal ? (int) $bal : number_format($bal, 2);
+                    return '<strong>' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong>' . ($product ? e($product->formatQuantity($bal)) : number_format($bal, 2)) . '</strong>';
             })
-            ->rawColumns(['outlet_name'])
+            ->rawColumns(['outlet_name', 'qty_in', 'qty_out', 'delta_qty', 'balance_before', 'balance_after'])
             ->setRowId('id');
     }
 
@@ -84,7 +130,7 @@ class StockReportDataTable extends DataTable
             : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
 
         $query = $model->newQuery()
-            ->with(['product.category', 'outlet', 'createdBy'])
+            ->with(['product.category', 'product.unit', 'product.subUnit', 'outlet', 'createdBy'])
             ->orderBy('movement_at', 'desc')
             ->orderBy('id', 'desc');
 
@@ -134,6 +180,10 @@ class StockReportDataTable extends DataTable
 
                 var intVal = function (value) {
                     if (typeof value === "string") {
+                        var match = value.match(/\(([\d,.]+)\s+total/);
+                        if (match) {
+                            return parseFloat(match[1].replace(/,/g, "")) || 0;
+                        }
                         return value.replace(/[^0-9.-]/g, "") * 1;
                     }
 

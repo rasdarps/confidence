@@ -36,10 +36,14 @@ class StocksDataTable extends DataTable
                 return '<span class="badge bg-secondary">All Locations (Combined)</span>';
             })
             ->addColumn('quantity', function ($row) use ($outletId) {
-                if ($outletId) {
-                    return number_format((float) $row->quantityForOutlet($outletId), 2);
+                $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
+                if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $row->formatQuantity($qty);
+                    $subName = $row->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong>' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
                 }
-                return number_format((float) $row->quantity, 2);
+                return '<strong>' . e($row->formatQuantity($qty)) . '</strong>';
             })
             ->rawColumns(['outlet_location', 'quantity'])
             ->setRowId('id');
@@ -51,7 +55,7 @@ class StocksDataTable extends DataTable
     public function query(Product $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with(['category', 'unit', 'outletStocks'])
+            ->with(['category', 'unit', 'subUnit', 'outletStocks'])
             ->orderBy('products.name', 'asc');
 
         if ($categoryId = $this->request()->get('category_id')) {
@@ -81,6 +85,10 @@ class StocksDataTable extends DataTable
 
                         var intVal = function (value) {
                             if (typeof value === "string") {
+                                var match = value.match(/\(([\d,.]+)\s+total/);
+                                if (match) {
+                                    return parseFloat(match[1].replace(/,/g, "")) || 0;
+                                }
                                 var textValue = $("<div>").html(value).text().trim();
                                 var normalized = textValue.replace(/,/g, "");
                                 var parsed = parseFloat(normalized);

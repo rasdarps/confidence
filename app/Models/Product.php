@@ -14,10 +14,15 @@ class Product extends Model
     protected $fillable = [
         'name',
         'unit_id',
+        'has_sub_unit',
+        'sub_unit_id',
+        'pieces_per_pack',
         'category_id',
         'barcode',
         'cost_price',
         'selling_price',
+        'sub_unit_cost_price',
+        'sub_unit_selling_price',
         'created_by',
         'updated_by',
         'deleted_by',
@@ -27,8 +32,12 @@ class Product extends Model
         'created_by' => 'integer',
         'updated_by' => 'integer',
         'deleted_by' => 'integer',
+        'has_sub_unit' => 'boolean',
+        'pieces_per_pack' => 'integer',
         'cost_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
+        'sub_unit_cost_price' => 'decimal:2',
+        'sub_unit_selling_price' => 'decimal:2',
     ];
 
     protected $appends = [
@@ -38,6 +47,79 @@ class Product extends Model
     public function unit()
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function subUnit()
+    {
+        return $this->belongsTo(Unit::class, 'sub_unit_id');
+    }
+
+    /**
+     * Format a base quantity into Pack and Piece breakdown.
+     * e.g. 28 pieces with 18 pcs/box -> "1 box, 10 pieces"
+     */
+    public function formatQuantity($baseQty): string
+    {
+        $qty = (float) $baseQty;
+        $isNegative = $qty < 0;
+        $absQty = abs($qty);
+        $packName = $this->unit?->name ?? 'Pack';
+        $subUnitName = $this->subUnit?->name ?? 'Piece';
+
+        $formatName = function($count, $name) {
+            $fmtCount = (float) $count == (int) $count ? (int) $count : rtrim(rtrim(number_format((float) $count, 2, '.', ''), '0'), '.');
+            $cleaned = trim($name ?? '');
+            $lower = strtolower($cleaned);
+
+            // Normalize singular word
+            $singular = $cleaned;
+            if (str_ends_with($lower, 'boxes')) $singular = 'box';
+            elseif (str_ends_with($lower, 'pieces')) $singular = 'piece';
+            elseif (str_ends_with($lower, 'bundles')) $singular = 'bundle';
+            elseif (str_ends_with($lower, 'liters') || str_ends_with($lower, 'litres')) $singular = 'liter';
+            elseif (str_ends_with($lower, 'kilograms')) $singular = 'kg';
+            elseif (str_ends_with($lower, 'meters') || str_ends_with($lower, 'metres')) $singular = 'meter';
+            elseif (str_ends_with($lower, 'bags')) $singular = 'bag';
+            elseif (str_ends_with($lower, 'packs')) $singular = 'pack';
+            elseif (str_ends_with($lower, 'cartons')) $singular = 'carton';
+            elseif (str_ends_with($lower, 'rolls')) $singular = 'roll';
+            elseif (str_ends_with($lower, 'bottles')) $singular = 'bottle';
+            elseif (str_ends_with($lower, 's') && strlen($lower) > 3) $singular = rtrim($cleaned, 'sS');
+
+            // Generate correct plural
+            $singLower = strtolower($singular);
+            if ($singLower === 'box') $plural = 'boxes';
+            elseif ($singLower === 'piece') $plural = 'pieces';
+            elseif ($singLower === 'bag') $plural = 'bags';
+            elseif ($singLower === 'pack') $plural = 'packs';
+            elseif ($singLower === 'carton') $plural = 'cartons';
+            elseif ($singLower === 'roll') $plural = 'rolls';
+            elseif ($singLower === 'bottle') $plural = 'bottles';
+            elseif (str_ends_with($singLower, 'ch') || str_ends_with($singLower, 'sh') || str_ends_with($singLower, 'x')) $plural = $singLower . 'es';
+            else $plural = $singLower . 's';
+
+            return $count == 1 ? "{$fmtCount} {$singLower}" : "{$fmtCount} {$plural}";
+        };
+
+        $prefix = $isNegative ? '-' : '';
+
+        if ($this->has_sub_unit && $this->pieces_per_pack > 1) {
+            $packs = (int) floor($absQty / $this->pieces_per_pack);
+            $loose = (int) round(fmod($absQty, $this->pieces_per_pack));
+
+            if ($packs > 0 && $loose > 0) {
+                return $prefix . $formatName($packs, $packName) . ', ' . $formatName($loose, $subUnitName);
+            } elseif ($packs > 0) {
+                return $prefix . $formatName($packs, $packName);
+            } elseif ($loose > 0) {
+                return $prefix . $formatName($loose, $subUnitName);
+            } else {
+                return $prefix . $formatName(0, $subUnitName);
+            }
+        }
+
+        $formattedQty = (float) rtrim(rtrim(number_format($absQty, 2, '.', ''), '0'), '.');
+        return $prefix . $formatName($formattedQty, $packName);
     }
 
     public function category()

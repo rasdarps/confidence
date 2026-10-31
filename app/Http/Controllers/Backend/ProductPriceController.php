@@ -102,6 +102,8 @@ class ProductPriceController extends Controller
         $validated = $request->validate([
             'cost_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0|gte:cost_price',
+            'sub_unit_cost_price' => 'nullable|numeric|min:0',
+            'sub_unit_selling_price' => 'nullable|numeric|min:0',
         ], [
             'cost_price.required' => 'Please enter a cost price',
             'cost_price.numeric' => 'Cost price must be a number',
@@ -123,9 +125,11 @@ class ProductPriceController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($validated, $product) {
+            DB::transaction(function () use ($validated, $product, $request) {
                 $product->cost_price = $validated['cost_price'];
                 $product->selling_price = $validated['selling_price'];
+                $product->sub_unit_cost_price = $request->input('sub_unit_cost_price') !== null && $request->input('sub_unit_cost_price') !== '' ? (float) $request->input('sub_unit_cost_price') : null;
+                $product->sub_unit_selling_price = $request->input('sub_unit_selling_price') !== null && $request->input('sub_unit_selling_price') !== '' ? (float) $request->input('sub_unit_selling_price') : null;
                 $product->updated_by = Auth::id();
                 $product->save();
 

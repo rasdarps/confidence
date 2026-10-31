@@ -106,7 +106,7 @@
                                             <div class="receipt-line-item-name">
                                                 <span class="item-name">{{ $details['product']['name'] }}</span>
                                             </div>
-                                            <div class="receipt-line-qty text-center">{{ rtrim(rtrim(number_format($details->selling_qty, 2, '.', ''), '0'), '.') }}</div>
+                                            <div class="receipt-line-qty text-center">{{ $details->formatted_qty }}</div>
                                             <div class="receipt-line-price text-end">{{ rtrim(rtrim(number_format($details->unit_selling_price, 2, '.', ''), '0'), '.') }}</div>
                                             <div class="receipt-line-total text-end">{{ number_format($details->selling_price, 2) }}</div>
                                         </div>
@@ -205,10 +205,17 @@
 
         .receipt-line {
             display: grid;
-            grid-template-columns: 30px minmax(0, 1fr) 42px 72px 80px;
+            grid-template-columns: 24px minmax(0, 1.35fr) minmax(0, 1.25fr) 68px 74px;
             column-gap: 6px;
             align-items: start;
             width: 100%;
+        }
+
+        .receipt-line-qty {
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.2;
+            font-size: 13px;
         }
 
         .receipt-line + .receipt-line {
@@ -416,43 +423,53 @@
             }
 
             .receipt-line-sn {
-                flex: 0 0 8%;
-                max-width: 8%;
+                flex: 0 0 6%;
+                max-width: 6%;
                 text-align: center;
                 white-space: nowrap;
-                font-size: 19px !important;
+                font-size: 16px !important;
             }
 
             .receipt-line-item-name {
-                flex: 0 0 42%;
-                max-width: 42%;
-                line-height: 1.25;
+                flex: 0 0 38%;
+                max-width: 38%;
+                line-height: 1.2;
                 padding-right: 1mm;
                 overflow: hidden;
                 word-break: break-word;
                 overflow-wrap: anywhere;
+                font-size: 16px !important;
             }
 
             .receipt-line-qty {
-                flex: 0 0 12%;
-                max-width: 12%;
+                flex: 0 0 25%;
+                max-width: 25%;
                 text-align: center;
-                padding-right: 1.2mm;
+                padding-right: 1mm;
+                padding-left: 1mm;
+                white-space: normal !important;
+                word-break: break-word;
+                line-height: 1.15;
+                font-size: 15px !important;
             }
 
             .receipt-line-price {
-                flex: 0 0 18%;
-                max-width: 18%;
+                flex: 0 0 15%;
+                max-width: 15%;
                 text-align: right;
-                padding-left: 1.8mm;
-                padding-right: 1.4mm;
+                padding-left: 1mm;
+                padding-right: 1mm;
+                white-space: nowrap;
+                font-size: 16px !important;
             }
 
             .receipt-line-total {
-                flex: 0 0 20%;
-                max-width: 20%;
+                flex: 0 0 16%;
+                max-width: 16%;
                 text-align: right;
-                padding-left: 1.8mm;
+                padding-left: 1mm;
+                white-space: nowrap;
+                font-size: 16px !important;
             }
 
             .receipt-line-header strong {
@@ -461,13 +478,12 @@
                 letter-spacing: 0.35px;
             }
 
-            .receipt-line-qty,
             .receipt-line-price,
             .receipt-line-total,
             .receipt-summary-value {
                 white-space: nowrap;
                 word-break: keep-all;
-                font-size: 19px !important;
+                font-size: 16px !important;
                 letter-spacing: 0;
                 overflow: visible !important;
             }

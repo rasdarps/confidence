@@ -100,6 +100,42 @@ use Illuminate\Support\Facades\Crypt;
                         </div>
                         {{-- row 3 ends --}}
 
+                        <!-- Multi-Unit Packaging breakdown -->
+                        <div class="card mt-3 border border-secondary shadow-none" style="background: #fbfdff; border-radius: 8px;">
+                            <div class="card-body py-3">
+                                <div class="custom-control custom-switch mb-2">
+                                    <input type="checkbox" class="custom-control-input" id="has_sub_unit" name="has_sub_unit" value="1" {{ old('has_sub_unit', $product->has_sub_unit) ? 'checked' : '' }}>
+                                    <label class="custom-control-label font-weight-bold text-dark" for="has_sub_unit" style="cursor: pointer;">
+                                        <i class="fas fa-boxes text-success mr-1 me-1"></i> Enable Bulk Pack & Loose Pieces (e.g. Sold in Boxes/Bags & Loose Pieces)
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block mb-3">Check this if this product is purchased or sold in cartons, boxes, or bags that can also be sold as individual pieces.</small>
+
+                                <div id="subUnitFields" style="display: {{ old('has_sub_unit', $product->has_sub_unit) ? 'flex' : 'none' }};" class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-0">
+                                            <label for="sub_unit_id"><strong>Loose Piece Unit <span class="text-danger">*</span></strong></label>
+                                            <select name="sub_unit_id" id="sub_unit_id" class="form-control select2" aria-label="Select piece unit">
+                                                <option value="">Select Piece Unit (e.g. Piece, Sachet, Bottle)</option>
+                                                @foreach($units as $unit)
+                                                    <option value="{{ $unit->id }}" {{ old('sub_unit_id', $product->sub_unit_id) == $unit->id ? 'selected' : '' }}>{{ $unit->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <small class="text-muted">The atomic unit when broken down (e.g., Piece, Sachet).</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-0">
+                                            <label for="pieces_per_pack"><strong>Pieces Per Pack (Multiplier) <span class="text-danger">*</span></strong></label>
+                                            <input type="number" id="pieces_per_pack" name="pieces_per_pack" class="form-control" value="{{ old('pieces_per_pack', $product->pieces_per_pack ?? 12) }}" min="2" placeholder="e.g. 12 pieces in 1 box">
+                                            <small class="text-muted">How many pieces are in 1 Box / Bag? (e.g. 12, 24, 50).</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row mt-4">
                             <div class="col-12 text-center">
                                 <button type="submit" class="btn btn-primary mt-3" style="background-color: #0F766E; border-color: #0F766E; padding: 8px 26px;">
@@ -200,6 +236,13 @@ use Illuminate\Support\Facades\Crypt;
 @section('scripts')
 <script type="text/javascript">
     $(document).ready(function (){
+        $('#has_sub_unit').on('change', function() {
+            if ($(this).is(':checked')) {
+                $('#subUnitFields').slideDown(200);
+            } else {
+                $('#subUnitFields').slideUp(200);
+            }
+        });
        
         // Handle form submission
         $('#myForm').on('submit', function(e) {

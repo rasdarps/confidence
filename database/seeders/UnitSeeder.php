@@ -23,6 +23,7 @@ class UnitSeeder extends Seeder
                 array('id' => 4, 'name' => 'liters'),
                 array('id' => 5, 'name' => 'kilograms'),
                 array('id' => 6, 'name' => 'meters'),
+                array('id' => 7, 'name' => 'bags'),
            
 
         );

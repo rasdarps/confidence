@@ -52,7 +52,7 @@ class StockAdjustmentController extends Controller
         }
 
         $currentOutlet = $outlets->firstWhere('id', $currentOutletId);
-        $products = Product::with('outletStocks')->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price']);
+        $products = Product::with(['unit', 'subUnit', 'outletStocks'])->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price', 'unit_id', 'sub_unit_id', 'has_sub_unit', 'pieces_per_pack', 'sub_unit_cost_price']);
 
         return view('backend.stock_adjustment.create', compact('products', 'outlets', 'currentOutletId', 'currentOutlet', 'canChangeOutlet'));
     }
@@ -151,7 +151,7 @@ class StockAdjustmentController extends Controller
     {
         try {
             $id = Crypt::decrypt($encryptedId);
-            $adjustment = StockAdjustment::with(['items.product', 'outlet'])->find($id);
+            $adjustment = StockAdjustment::with(['items.product.unit', 'items.product.subUnit', 'outlet'])->find($id);
 
             if (! $adjustment) {
                 return redirect()->route('stock-adjustments.index')->with('error', 'Stock adjustment not found.');
@@ -165,7 +165,7 @@ class StockAdjustmentController extends Controller
                 return redirect()->route('stock-adjustments.index')->with('error', 'You do not have access to adjustments from other branches.');
             }
 
-            $products = Product::with('outletStocks')->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price']);
+            $products = Product::with(['unit', 'subUnit', 'outletStocks'])->orderBy('name')->get(['id', 'name', 'barcode', 'cost_price', 'unit_id', 'sub_unit_id', 'has_sub_unit', 'pieces_per_pack', 'sub_unit_cost_price']);
             return view('backend.stock_adjustment.edit', compact('adjustment', 'products'));
         } catch (\Exception $e) {
             return redirect()->route('stock-adjustments.index')->with('error', 'Invalid stock adjustment ID.');

@@ -37,23 +37,59 @@ class StockValueReportDataTable extends DataTable
             })
             ->addColumn('quantity', function ($row) use ($outletId) {
                 $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
-                return number_format($qty, 2);
+                if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                    $formatted = $row->formatQuantity($qty);
+                    $subName = $row->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong>' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong>' . e($row->formatQuantity($qty)) . '</strong>';
+            })
+            ->editColumn('cost_price', function ($row) {
+                $cost = (float) ($row->cost_price ?? 0);
+                if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                    $unitCost = (float) ($row->sub_unit_cost_price ?: ($cost / $row->pieces_per_pack));
+                    $subName = $row->subUnit?->name ?? 'pc';
+                    return '₵' . number_format($cost, 2) . '<br><small class="text-muted">(₵' . number_format($unitCost, 2) . '/' . e($subName) . ')</small>';
+                }
+                return '₵' . number_format($cost, 2);
             })
             ->addColumn('cost_value', function ($row) use ($outletId) {
                 $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
-                return number_format($qty * (float) $row->cost_price, 2);
+                $unitCost = ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($row->sub_unit_cost_price ?: ($row->cost_price / $row->pieces_per_pack))
+                    : (float) $row->cost_price;
+                return number_format($qty * $unitCost, 2);
+            })
+            ->editColumn('selling_price', function ($row) {
+                $sell = (float) ($row->selling_price ?? 0);
+                if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                    $unitSell = (float) ($row->sub_unit_selling_price ?: ($sell / $row->pieces_per_pack));
+                    $subName = $row->subUnit?->name ?? 'pc';
+                    return '₵' . number_format($sell, 2) . '<br><small class="text-muted">(₵' . number_format($unitSell, 2) . '/' . e($subName) . ')</small>';
+                }
+                return '₵' . number_format($sell, 2);
             })
             ->addColumn('sell_value', function ($row) use ($outletId) {
                 $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
-                return number_format($qty * (float) $row->selling_price, 2);
+                $unitSell = ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($row->sub_unit_selling_price ?: ($row->selling_price / $row->pieces_per_pack))
+                    : (float) $row->selling_price;
+                return number_format($qty * $unitSell, 2);
             })
             ->addColumn('profit', function ($row) use ($outletId) {
                 $qty = $outletId ? (float) $row->quantityForOutlet($outletId) : (float) $row->quantity;
-                $cost_value = $qty * (float) $row->cost_price;
-                $sell_value = $qty * (float) $row->selling_price;
+                $unitCost = ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($row->sub_unit_cost_price ?: ($row->cost_price / $row->pieces_per_pack))
+                    : (float) $row->cost_price;
+                $unitSell = ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1)
+                    ? (float) ($row->sub_unit_selling_price ?: ($row->selling_price / $row->pieces_per_pack))
+                    : (float) $row->selling_price;
+                $cost_value = $qty * $unitCost;
+                $sell_value = $qty * $unitSell;
                 return number_format($sell_value - $cost_value, 2);
             })
-            ->rawColumns(['outlet_location', 'quantity', 'cost_value', 'sell_value', 'profit'])
+            ->rawColumns(['outlet_location', 'quantity', 'cost_price', 'cost_value', 'selling_price', 'sell_value', 'profit'])
             ->setRowId('id');
     }
 
@@ -63,8 +99,7 @@ class StockValueReportDataTable extends DataTable
     public function query(Product $model): QueryBuilder
     {
         $query = $model->newQuery()
-            ->with('outletStocks')
-            ->select('id', 'name', 'cost_price', 'selling_price')
+            ->with(['outletStocks', 'unit', 'subUnit'])
             ->orderBy('name', 'asc');
 
         if ($productId = $this->request()->get('product_id')) {
@@ -92,6 +127,10 @@ class StockValueReportDataTable extends DataTable
 
                         var intVal = function (value) {
                             if (typeof value === "string") {
+                                var match = value.match(/\(([\d,.]+)\s+total/);
+                                if (match) {
+                                    return parseFloat(match[1].replace(/,/g, "")) || 0;
+                                }
                                 return value.replace(/[^0-9.-]/g, "") * 1;
                             }
 

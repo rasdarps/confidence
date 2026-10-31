@@ -56,20 +56,51 @@ use Illuminate\Support\Facades\Crypt;
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <div class="form-group mb-3">
-                                    <label for="cost_price"><strong>Cost Price <span class="text-danger">*</span></strong></label>
+                                    <label for="cost_price"><strong>{{ $product->has_sub_unit ? ($product->unit?->name . ' Cost Price') : 'Cost Price' }} <span class="text-danger">*</span></strong></label>
                                     <input type="number" step="0.01" id="cost_price" name="cost_price" class="form-control" value="{{ old('cost_price', $product->cost_price) }}" placeholder="Enter cost price" min="0">
-                                    <small class="text-muted">Standard baseline purchasing / landed cost.</small>
+                                    <small class="text-muted">Standard baseline purchasing / landed cost per {{ $product->unit?->name ?? 'unit' }}.</small>
                                 </div>
                             </div>
 
                             <div class="col-md-6">
                                 <div class="form-group mb-3">
-                                    <label for="selling_price"><strong>Selling Price <span class="text-danger">*</span></strong></label>
+                                    <label for="selling_price"><strong>{{ $product->has_sub_unit ? ($product->unit?->name . ' Selling Price') : 'Selling Price' }} <span class="text-danger">*</span></strong></label>
                                     <input type="number" step="0.01" id="selling_price" name="selling_price" class="form-control" value="{{ old('selling_price', $product->selling_price) }}" placeholder="Enter selling price" min="0">
-                                    <small class="text-muted">Enterprise retail selling price across all POS stations.</small>
+                                    <small class="text-muted">Retail selling price per full {{ $product->unit?->name ?? 'pack' }}.</small>
                                 </div>
                             </div>
                         </div>
+
+                        @if($product->has_sub_unit && $product->pieces_per_pack > 1)
+                        <div class="card border border-info shadow-none my-3" style="background: #f0fdfa;">
+                            <div class="card-body py-3">
+                                <h6 class="font-weight-bold text-dark mb-2">
+                                    <i class="fas fa-boxes text-success mr-1 me-1"></i> Loose Piece Pricing (Breakdown for {{ $product->subUnit?->name ?? 'Piece' }})
+                                </h6>
+                                <p class="text-muted small mb-3">
+                                    1 {{ $product->unit?->name ?? 'Pack' }} contains <strong>{{ $product->pieces_per_pack }} {{ $product->subUnit?->name ?? 'Pieces' }}</strong>. Set the individual loose piece prices below when selling or buying individual units.
+                                </p>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-2">
+                                            <label for="sub_unit_cost_price"><strong>Piece Cost Price ({{ $product->subUnit?->name ?? 'Piece' }})</strong></label>
+                                            <input type="number" step="0.01" id="sub_unit_cost_price" name="sub_unit_cost_price" class="form-control" value="{{ old('sub_unit_cost_price', $product->sub_unit_cost_price) }}" placeholder="e.g. Cost per individual piece" min="0">
+                                            <small class="text-muted">Landed cost per single piece (Leave empty to use {{ $product->unit?->name }} Cost / {{ $product->pieces_per_pack }}).</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="form-group mb-2">
+                                            <label for="sub_unit_selling_price"><strong>Piece Selling Price ({{ $product->subUnit?->name ?? 'Piece' }})</strong></label>
+                                            <input type="number" step="0.01" id="sub_unit_selling_price" name="sub_unit_selling_price" class="form-control" value="{{ old('sub_unit_selling_price', $product->sub_unit_selling_price) }}" placeholder="e.g. Retail price per piece" min="0">
+                                            <small class="text-muted">Retail price charged to customers for 1 loose piece at POS.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @endif
 
                         <div class="row g-3 mb-2">
                             <div class="col-12">

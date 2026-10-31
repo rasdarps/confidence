@@ -68,7 +68,14 @@ class StockAdjustmentReportDataTable extends DataTable
                     : '';
             })
             ->editColumn('qty', function ($row) {
-                return number_format((float) $row->qty, 2);
+                $product = $row->product;
+                if ($product && $product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                    $qty = (float) $row->qty;
+                    $subName = $product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong>' . e($product->formatQuantity($qty)) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                return '<strong>' . ($product ? e($product->formatQuantity($row->qty)) : number_format((float) $row->qty, 2)) . '</strong>';
             })
             ->editColumn('unit_cost', function ($row) {
                 return number_format((float) $row->unit_cost, 2);
@@ -76,7 +83,7 @@ class StockAdjustmentReportDataTable extends DataTable
             ->editColumn('amount', function ($row) {
                 return number_format((float) $row->amount, 2);
             })
-            ->rawColumns(['outlet_name', 'adjustment_type'])
+            ->rawColumns(['outlet_name', 'adjustment_type', 'qty'])
             ->setRowId('id');
     }
 
@@ -91,7 +98,7 @@ class StockAdjustmentReportDataTable extends DataTable
             : ($this->request()->filled('outlet_id') ? (int) $this->request()->get('outlet_id') : null);
 
         $query = $model->newQuery()
-            ->with(['adjustment.createdBy', 'adjustment.outlet', 'product'])
+            ->with(['adjustment.createdBy', 'adjustment.outlet', 'product.unit', 'product.subUnit'])
             ->whereHas('adjustment')
             ->orderBy('id', 'desc');
 

@@ -26,6 +26,11 @@
                             <i class="fas fa-balance-scale me-1"></i> {{ $product->unit->name }}
                         </span>
                     @endif
+                    @if($product->has_sub_unit)
+                        <span class="badge bg-dark text-white border" style="font-size: 11px; padding: 5px 9px;">
+                            <i class="fas fa-boxes text-success me-1"></i> 1 {{ $product->unit?->name }} = {{ $product->pieces_per_pack }} {{ $product->subUnit?->name }}
+                        </span>
+                    @endif
                     <span class="badge bg-white text-dark border" style="font-size: 11px; padding: 5px 9px; font-family: monospace;">
                         <i class="fas fa-barcode text-muted me-1"></i> {{ $product->barcode ?: 'No Barcode' }}
                     </span>

@@ -40,7 +40,7 @@ class ProductController extends Controller
     public function findByBarcode(Request $request)
     {
         $barcode = trim((string) $request->input('barcode', ''));
-        $product = Product::with(['category', 'unit'])->where('barcode', $barcode)->first();
+        $product = Product::with(['category', 'unit', 'subUnit'])->where('barcode', $barcode)->first();
 
         if (!$product) {
             return response()->json([
@@ -288,6 +288,9 @@ class ProductController extends Controller
                 'name' => 'required|string|max:255|unique:products,name,' . $id,
                 'barcode'     => 'nullable|string|max:50|unique:products,barcode,' . $id,
                 'unit_id' => 'required|exists:units,id',
+                'has_sub_unit' => 'nullable|boolean',
+                'sub_unit_id' => 'nullable|required_if:has_sub_unit,1,true|exists:units,id',
+                'pieces_per_pack' => 'nullable|required_if:has_sub_unit,1,true|integer|min:2',
                 'category_id' => 'required|exists:categories,id',
                 'stock_level' => 'required|numeric|min:0',
             ], [
@@ -298,6 +301,9 @@ class ProductController extends Controller
                 'barcode.max'          => 'Barcode must not exceed 50 characters',
                 'unit_id.required' => 'Please select a unit',
                 'unit_id.exists' => 'Selected unit is invalid',
+                'sub_unit_id.required_if' => 'Please select a Piece/Sub-unit',
+                'pieces_per_pack.required_if' => 'Please enter the number of pieces per pack',
+                'pieces_per_pack.min' => 'Pieces per pack must be at least 2',
                 'category_id.required' => 'Please select a category',
                 'category_id.exists' => 'Selected category is invalid',
                 'stock_level.required' => 'Please enter stock level',
@@ -306,13 +312,17 @@ class ProductController extends Controller
             ]);
 
             try {
-                DB::transaction(function () use ($validatedData, $product) {
+                DB::transaction(function () use ($validatedData, $product, $request) {
                     $barcodeInput = isset($validatedData['barcode']) ? trim((string) $validatedData['barcode']) : '';
+                    $hasSubUnit = $request->boolean('has_sub_unit');
 
                     $updateData = [
                         'name' => $validatedData['name'],
                         'barcode' => $barcodeInput !== '' ? $barcodeInput : $product->barcode,
                         'unit_id' => $validatedData['unit_id'],
+                        'has_sub_unit' => $hasSubUnit,
+                        'sub_unit_id' => $hasSubUnit ? ($request->input('sub_unit_id') ?: null) : null,
+                        'pieces_per_pack' => $hasSubUnit ? ((int) ($request->input('pieces_per_pack') ?: 1)) : null,
                         'category_id' => $validatedData['category_id'],
                         'updated_by' => Auth::id(),
                     ];

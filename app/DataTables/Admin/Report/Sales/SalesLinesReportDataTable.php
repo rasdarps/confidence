@@ -26,7 +26,14 @@ class SalesLinesReportDataTable extends DataTable
                 return '<span class="badge ' . $badgeClass . '">' . e($row->outlet_name) . '</span>';
             })
             ->editColumn('selling_qty', function ($row) {
-                return number_format((float) $row->selling_qty, 2);
+                if ($row->product && $row->product->has_sub_unit && ($row->pieces_per_pack ?: ($row->product->pieces_per_pack ?: 1)) > 1) {
+                    $qty = (float) $row->selling_qty;
+                    $subName = $row->product->subUnit?->name ?? 'pcs';
+                    $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 2);
+                    return '<strong>' . e($row->formatted_qty) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+                }
+                $unitName = $row->product?->unit?->name ?? 'units';
+                return '<strong>' . ($row->product ? e($row->product->formatQuantity($row->selling_qty)) : number_format((float) $row->selling_qty, 2)) . '</strong>';
             })
             ->editColumn('unit_selling_price', function ($row) {
                 return number_format((float) $row->unit_selling_price, 2);
@@ -34,7 +41,7 @@ class SalesLinesReportDataTable extends DataTable
             ->editColumn('selling_price', function ($row) {
                 return number_format((float) $row->selling_price, 2);
             })
-            ->rawColumns(['outlet_name'])
+            ->rawColumns(['outlet_name', 'selling_qty'])
             ->setRowId('id');
     }
 
@@ -52,6 +59,7 @@ class SalesLinesReportDataTable extends DataTable
             ->leftJoin('customers', 'customers.id', '=', 'payments.customer_id')
             ->leftJoin('products', 'products.id', '=', 'sale_details.product_id')
             ->leftJoin('categories', 'categories.id', '=', 'sale_details.category_id')
+            ->with(['product.unit', 'product.subUnit'])
             ->select([
                 'sale_details.id',
                 'sale_details.sale_id',

@@ -66,7 +66,7 @@ class SaleController extends Controller
 
         $unit = Unit::all();
         $category = Category::all();
-        $products = Product::with(['category', 'unit', 'outletStocks'])->orderBy('name')->get();
+        $products = Product::with(['category', 'unit', 'subUnit', 'outletStocks'])->orderBy('name')->get();
         $costomer = Customer::all();
 
         // Get the maximum numeric sale_no
@@ -178,7 +178,14 @@ class SaleController extends Controller
                 throw ValidationException::withMessages(['product_id.'.$index => 'Selected product does not have a valid selling price.']);
             }
             $unitSellingPrices[] = $unitPrice;
-            $lineTotals[] = round((float) $request->selling_qty[$index] * $unitPrice, 2);
+            if ($product->has_sub_unit && ($product->pieces_per_pack ?: 1) > 1) {
+                $packQty = isset($request->pack_qty[$index]) ? (float) $request->pack_qty[$index] : 0;
+                $pieceQty = isset($request->piece_qty[$index]) ? (float) $request->piece_qty[$index] : 0;
+                $subUnitPrice = (float) ($product->sub_unit_selling_price ?? ($product->pieces_per_pack > 0 ? round($unitPrice / $product->pieces_per_pack, 2) : 0));
+                $lineTotals[] = round(($packQty * $unitPrice) + ($pieceQty * $subUnitPrice), 2);
+            } else {
+                $lineTotals[] = round((float) $request->selling_qty[$index] * $unitPrice, 2);
+            }
         }
 
         $request->merge([
@@ -337,13 +344,29 @@ class SaleController extends Controller
                             ]);
                         }
 
+                        $packQty = isset($request->pack_qty[$i]) ? (float) $request->pack_qty[$i] : 0;
+                        $pieceQty = isset($request->piece_qty[$i]) ? (float) $request->piece_qty[$i] : 0;
+                        $piecesPerPack = $product->has_sub_unit ? ($product->pieces_per_pack ?: 1) : null;
+                        $subUnitSellingPrice = $product->has_sub_unit ? ($product->sub_unit_selling_price ?? ($product->pieces_per_pack > 0 ? round($product->selling_price / $product->pieces_per_pack, 2) : 0)) : null;
+
+                        // Total base units for inventory deduction
+                        if ($product->has_sub_unit && $piecesPerPack > 1 && ($packQty > 0 || $pieceQty > 0)) {
+                            $totalBaseQty = ($packQty * $piecesPerPack) + $pieceQty;
+                        } else {
+                            $totalBaseQty = (float) $request->selling_qty[$i];
+                        }
+
                         $sale_details = new SaleDetail();
                         $sale_details->date = date('Y-m-d', strtotime($request->date));
                         $sale_details->sale_id = $Sale->id;
                         $sale_details->category_id = $categoryId;
                         $sale_details->product_id = $request->product_id[$i];
-                        $sale_details->selling_qty = $request->selling_qty[$i];
+                        $sale_details->selling_qty = $totalBaseQty;
+                        $sale_details->pack_qty = $packQty;
+                        $sale_details->piece_qty = $pieceQty;
+                        $sale_details->pieces_per_pack = $piecesPerPack;
                         $sale_details->unit_selling_price = $request->unit_selling_price[$i];
+                        $sale_details->sub_unit_selling_price = $subUnitSellingPrice;
                         $sale_details->selling_price = $request->selling_price[$i];
                         $sale_details->unit_id = $unitId;
                         $sale_details->save();

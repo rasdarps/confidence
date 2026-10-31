@@ -90,10 +90,20 @@ class ProductDataTable extends DataTable
             }
             
             $html = '<div><span class="badge badge-' . $badgeClass . '">' . $statusText . '</span><br>';
-            $html .= '<strong class="text-dark">' . number_format($qty, 0) . ' units</strong>';
+            if ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) {
+                $formatted = $row->formatQuantity($qty);
+                $subName = $row->subUnit?->name ?? 'pcs';
+                $totalPieces = (float) $qty == (int) $qty ? (int) $qty : number_format($qty, 0);
+                $html .= '<strong class="text-dark">' . e($formatted) . '</strong><br><small class="text-muted">(' . $totalPieces . ' total ' . e($subName) . ')</small>';
+            } else {
+                $html .= '<strong class="text-dark">' . e($row->formatQuantity($qty)) . '</strong>';
+            }
 
             if ($effectiveOutletId && $user && $user->isCentral()) {
-                $html .= '<br><span class="text-muted" style="font-size:10px;">Total Enterprise: ' . number_format($row->quantity, 0) . '</span>';
+                $totalFormatted = ($row->has_sub_unit && ($row->pieces_per_pack ?: 1) > 1) 
+                    ? $row->formatQuantity($row->quantity) 
+                    : number_format($row->quantity, 0) . ' units';
+                $html .= '<br><span class="text-muted" style="font-size:10px;">Total Enterprise: ' . e($totalFormatted) . '</span>';
             } elseif (!$effectiveOutletId) {
                 $html .= '<br><span class="badge bg-light text-muted border" style="font-size:9px;">Enterprise Total</span>';
             }
@@ -170,7 +180,7 @@ class ProductDataTable extends DataTable
         }
 
         $query = $model->newQuery()
-            ->with(['category', 'unit', 'outletStocks.outlet'])
+            ->with(['category', 'unit', 'subUnit', 'outletStocks.outlet'])
             ->orderBy('created_at', 'desc');
     
         // Filter by category

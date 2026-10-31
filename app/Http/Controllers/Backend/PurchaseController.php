@@ -57,7 +57,7 @@ class PurchaseController extends Controller
         $centralOutletId = \App\Models\Outlet::where('is_central', true)->value('id') ?? 1;
         $unit = Unit::all();
         $category = Category::all();
-        $products = Product::with(['category', 'unit', 'outletStocks'])->orderBy('name')->get();
+        $products = Product::with(['category', 'unit', 'subUnit', 'outletStocks'])->orderBy('name')->get();
         $suppliers = Supplier::all();
 
         // Get the maximum numeric purchase_no
@@ -144,7 +144,16 @@ class PurchaseController extends Controller
                     'unit_selling_price.'.$index => 'Unit selling price must be greater than unit cost price for item #'.($index + 1).'.',
                 ]);
             }
-            $buyingPrices[] = round((float) $request->buying_qty[$index] * $cost, 2);
+            $packQty = isset($request->pack_qty[$index]) ? (float) $request->pack_qty[$index] : 0;
+            $pieceQty = isset($request->piece_qty[$index]) ? (float) $request->piece_qty[$index] : 0;
+            $piecesPerPack = $product->has_sub_unit ? ($product->pieces_per_pack ?: 1) : 1;
+            
+            if ($product->has_sub_unit && $piecesPerPack > 1 && ($packQty > 0 || $pieceQty > 0)) {
+                $subUnitCost = $product->sub_unit_cost_price ?? ($piecesPerPack > 0 ? round($cost / $piecesPerPack, 2) : 0);
+                $buyingPrices[] = round(($packQty * $cost) + ($pieceQty * $subUnitCost), 2);
+            } else {
+                $buyingPrices[] = round((float) $request->buying_qty[$index] * $cost, 2);
+            }
         }
 
         $request->merge(['buying_price' => $buyingPrices]);
@@ -259,13 +268,28 @@ class PurchaseController extends Controller
                             ]);
                         }
 
+                        $packQty = isset($request->pack_qty[$i]) ? (float) $request->pack_qty[$i] : 0;
+                        $pieceQty = isset($request->piece_qty[$i]) ? (float) $request->piece_qty[$i] : 0;
+                        $piecesPerPack = $product->has_sub_unit ? ($product->pieces_per_pack ?: 1) : null;
+                        $subUnitCostPrice = $product->has_sub_unit ? ($product->sub_unit_cost_price ?? ($product->pieces_per_pack > 0 ? round($request->unit_cost_price[$i] / $product->pieces_per_pack, 2) : 0)) : null;
+
+                        if ($product->has_sub_unit && $piecesPerPack > 1 && ($packQty > 0 || $pieceQty > 0)) {
+                            $totalBaseQty = ($packQty * $piecesPerPack) + $pieceQty;
+                        } else {
+                            $totalBaseQty = (float) $request->buying_qty[$i];
+                        }
+
                         $purchase_details = new PurchaseDetail();
                         $purchase_details->date = date('Y-m-d', strtotime($request->date));
                         $purchase_details->purchase_id = $purchase->id;
                         $purchase_details->category_id = $categoryId;
                         $purchase_details->product_id = $request->product_id[$i];
-                        $purchase_details->buying_qty = $request->buying_qty[$i];
+                        $purchase_details->buying_qty = $totalBaseQty;
+                        $purchase_details->pack_qty = $packQty;
+                        $purchase_details->piece_qty = $pieceQty;
+                        $purchase_details->pieces_per_pack = $piecesPerPack;
                         $purchase_details->unit_cost_price = $request->unit_cost_price[$i];
+                        $purchase_details->sub_unit_cost_price = $subUnitCostPrice;
                         $purchase_details->buying_price = $request->buying_price[$i];
                         $purchase_details->unit_id = $unitId;
                         $purchase_details->save();
@@ -297,6 +321,11 @@ class PurchaseController extends Controller
                                 $product->selling_price = $request->unit_selling_price[$i];
                                 $priceChanged = true;
                             }
+                        }
+
+                        if ($product->has_sub_unit && $product->pieces_per_pack > 1 && $priceChanged) {
+                            $product->sub_unit_cost_price = round($product->cost_price / $product->pieces_per_pack, 2);
+                            $product->sub_unit_selling_price = round($product->selling_price / $product->pieces_per_pack, 2);
                         }
 
                         $product->save();

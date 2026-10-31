@@ -117,7 +117,7 @@
                                                 <td class="text-center">{{ $details['category']['name'] }}</td>
                                                 <td class="text-center">{{ $details['product']['name'] }}</td>
                                                 
-                                                <td class="text-center">{{ $details->buying_qty }}</td>
+                                                <td class="text-center">{{ $details->formatted_qty }}</td>
                                                 <td class="text-center">{{ $details->unit_cost_price }}</td>
                                                 <td class="text-end">{{ number_format($details->buying_price, 2) }}</td>
                                                 

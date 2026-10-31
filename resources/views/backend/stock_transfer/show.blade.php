@@ -1,6 +1,23 @@
 @extends('layout.main')
 @section('title') {{'Stock Transfer ' . $transfer->transfer_no}} @endsection
 
+@section('scripts')
+<script>
+$(document).ready(function() {
+    $(document).on('input change', '.recv-pack-input, .recv-piece-input', function() {
+        var $row = $(this).closest('tr');
+        var ppp = parseInt($(this).data('ppp')) || 1;
+        var targetId = $(this).data('target');
+        var packs = parseFloat($row.find('.recv-pack-input').val()) || 0;
+        var pieces = parseFloat($row.find('.recv-piece-input').val()) || 0;
+        var total = Math.round((packs * ppp) + pieces);
+        $('#' + targetId).val(total);
+        $row.find('[class*="recv-preview-"]').text('(= ' + total + ' total)');
+    });
+});
+</script>
+@endsection
+
 @section('content')
 <div class="page-content">
     <div class="container-fluid">
@@ -94,10 +111,22 @@
                                             <td><strong>{{ $item->product->name ?? 'N/A' }}</strong></td>
                                             <td>{{ $item->product->barcode ?? 'N/A' }}</td>
                                             <td>{{ $item->product->unit->name ?? 'pcs' }}</td>
-                                            <td class="text-center">{{ number_format((float) $item->qty_dispatched, 2) }}</td>
+                                            <td class="text-center">
+                                                @if($item->product && $item->product->has_sub_unit && ($item->product->pieces_per_pack ?: 1) > 1)
+                                                    <strong>{{ $item->product->formatQuantity($item->qty_dispatched) }}</strong>
+                                                    <br><small class="text-muted">({{ (float) $item->qty_dispatched == (int) $item->qty_dispatched ? (int) $item->qty_dispatched : number_format($item->qty_dispatched, 2) }} total {{ $item->product->subUnit?->name ?? 'pcs' }})</small>
+                                                @else
+                                                    <strong>{{ $item->product ? $item->product->formatQuantity($item->qty_dispatched) : number_format((float) $item->qty_dispatched, 2) }}</strong>
+                                                @endif
+                                            </td>
                                             <td class="text-center">
                                                 @if($transfer->status === 'received')
-                                                    <span class="badge bg-success">{{ number_format((float) $item->qty_received, 2) }}</span>
+                                                    @if($item->product && $item->product->has_sub_unit && ($item->product->pieces_per_pack ?: 1) > 1)
+                                                        <span class="badge bg-success">{{ $item->product->formatQuantity($item->qty_received) }}</span>
+                                                        <br><small class="text-muted">({{ (float) $item->qty_received == (int) $item->qty_received ? (int) $item->qty_received : number_format($item->qty_received, 2) }} total {{ $item->product->subUnit?->name ?? 'pcs' }})</small>
+                                                    @else
+                                                        <span class="badge bg-success">{{ number_format((float) $item->qty_received, 2) }}</span>
+                                                    @endif
                                                 @else
                                                     <span class="text-muted">Pending receipt</span>
                                                 @endif
@@ -131,23 +160,65 @@
                                     <form action="{{ route('stock-transfers.receive', Crypt::encrypt($transfer->id)) }}" method="POST">
                                         @csrf
                                         <div class="table-responsive mb-3">
-                                            <table class="table table-sm table-bordered">
+                                            <table class="table table-bordered table-striped align-middle mb-0" style="border: 1px solid #cbd5e1;">
                                                 <thead class="table-light">
                                                     <tr>
-                                                        <th>Product</th>
-                                                        <th class="text-center">Dispatched Qty</th>
-                                                        <th class="text-center" style="width: 200px;">Confirmed Received Qty</th>
+                                                        <th class="ps-3 pl-3">Product Name</th>
+                                                        <th class="text-center" style="width: 200px;">Dispatched Quantity</th>
+                                                        <th class="text-center" style="width: 300px; min-width: 280px;">Confirmed Received Qty</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     @foreach($transfer->items as $item)
+                                                        @php
+                                                            $p = $item->product;
+                                                            $hasSub = $p && $p->has_sub_unit && ($p->pieces_per_pack ?: 1) > 1;
+                                                            $dispatched = (float) $item->qty_dispatched;
+                                                            $packName = $p?->unit?->name ?? 'Pack';
+                                                            $subName = $p?->subUnit?->name ?? 'pcs';
+                                                            $ppp = $p?->pieces_per_pack ?: 1;
+                                                            $dispPacks = $hasSub ? (int) floor($dispatched / $ppp) : 0;
+                                                            $dispPieces = $hasSub ? (int) round(fmod($dispatched, $ppp)) : 0;
+                                                        @endphp
                                                         <tr>
-                                                            <td>{{ $item->product->name ?? 'N/A' }}</td>
-                                                            <td class="text-center">{{ number_format((float) $item->qty_dispatched, 2) }}</td>
+                                                            <td class="ps-3 pl-3"><strong>{{ $p->name ?? 'N/A' }}</strong></td>
                                                             <td class="text-center">
-                                                                <input type="number" step="any" min="0" class="form-control text-center"
-                                                                    name="qty_received[{{ $item->id }}]"
-                                                                    value="{{ (float) $item->qty_dispatched }}" required>
+                                                                @if($hasSub)
+                                                                    <strong class="text-primary fs-6">{{ $p->formatQuantity($dispatched) }}</strong>
+                                                                    <br><small class="text-muted fw-bold">({{ (float) $dispatched == (int) $dispatched ? (int) $dispatched : number_format($dispatched, 2) }} {{ $subName }})</small>
+                                                                @else
+                                                                    <strong class="text-primary fs-6">{{ number_format($dispatched, 2) }} {{ $packName }}</strong>
+                                                                @endif
+                                                            </td>
+                                                            <td class="text-center p-2">
+                                                                @if($hasSub)
+                                                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                                                        <div style="flex: 1; position: relative;">
+                                                                            <input type="number" min="0" step="1" class="form-control text-center fw-bold recv-pack-input"
+                                                                                style="height: 40px; font-size: 15px; padding-right: 48px; border: 1.5px solid #cbd5e1; border-radius: 8px;"
+                                                                                data-ppp="{{ $ppp }}"
+                                                                                data-target="recv_qty_{{ $item->id }}"
+                                                                                value="{{ $dispPacks }}" placeholder="0">
+                                                                            <span class="position-absolute end-0 top-50 translate-middle-y me-2 text-muted fw-semibold small" style="pointer-events: none; font-size: 11px;">{{ $packName }}</span>
+                                                                        </div>
+                                                                        <span class="fw-bold text-muted fs-5 px-1">+</span>
+                                                                        <div style="flex: 1; position: relative;">
+                                                                            <input type="number" min="0" step="1" class="form-control text-center fw-bold recv-piece-input"
+                                                                                style="height: 40px; font-size: 15px; padding-right: 48px; border: 1.5px solid #cbd5e1; border-radius: 8px;"
+                                                                                data-ppp="{{ $ppp }}"
+                                                                                data-target="recv_qty_{{ $item->id }}"
+                                                                                value="{{ $dispPieces }}" placeholder="0">
+                                                                            <span class="position-absolute end-0 top-50 translate-middle-y me-2 text-muted fw-semibold small" style="pointer-events: none; font-size: 11px;">{{ $subName }}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <input type="hidden" id="recv_qty_{{ $item->id }}" name="qty_received[{{ $item->id }}]" value="{{ $dispatched }}">
+                                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold recv-preview-{{ $item->id }}" style="font-size: 11px;">(= {{ $dispatched }} {{ $subName }})</span>
+                                                                @else
+                                                                    <input type="number" step="any" min="0" class="form-control text-center fw-bold"
+                                                                        style="height: 40px; font-size: 15px; border: 1.5px solid #cbd5e1; border-radius: 8px;"
+                                                                        name="qty_received[{{ $item->id }}]"
+                                                                        value="{{ $dispatched }}" required>
+                                                                @endif
                                                             </td>
                                                         </tr>
                                                     @endforeach
